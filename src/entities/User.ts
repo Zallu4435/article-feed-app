@@ -9,7 +9,6 @@ import {
   OneToMany
 } from "typeorm";
 import * as bcrypt from "bcryptjs";
-import type { UserPreference } from "./UserPreference";
 
 @Entity("users")
 export class User {
@@ -55,9 +54,8 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany('UserPreference', (preference: UserPreference) => preference.user)
-  preferences!: UserPreference[];
-
+  @OneToMany(() => require("./UserPreference").UserPreference, (preference: any) => preference.user)
+  preferences!: any[];
 
   @BeforeInsert()
   @BeforeUpdate()
