@@ -1,4 +1,3 @@
-// Form data types from schemas
 export type LoginFormData = {
   email: string;
   password: string;
@@ -33,13 +32,4 @@ export type CreateArticleForm = {
 
 export type ForgotPasswordFormData = {
   email: string;
-};
-
-export type VerifyOtpFormData = {
-  otp: string;
-};
-
-export type ResetPasswordFormData = {
-  password: string;
-  confirmPassword: string;
 };
