@@ -30,11 +30,6 @@ export type CreateArticleForm = {
   categoryId: string;
 };
 
-export type ChangePasswordFormData = {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-};
 
 export type ForgotPasswordFormData = {
   email: string;

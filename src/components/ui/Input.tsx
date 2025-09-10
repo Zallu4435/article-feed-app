@@ -42,7 +42,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       }
     }, [props.value, props.defaultValue]);
 
-    // Determine input state for styling
     const isError = !!error;
     const isSuccess = success && !isError;
     const isActive = isFocused || hasValue;
@@ -65,7 +64,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         
         <div className="relative group">
-          {/* Left Icon */}
+
           {leftIcon && (
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
               <div className={cn(
@@ -79,7 +78,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
 
-          {/* Input Field */}
           <input
             type={type}
             id={inputId}
@@ -90,19 +88,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             onBlur={handleBlur}
             onChange={handleChange}
             className={cn(
-              // Base styles
               "block w-full rounded-lg border transition-all duration-200 text-sm placeholder-gray-400",
               "focus:outline-none focus:ring-2 focus:ring-offset-0",
               "disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed",
               
-              // Padding based on icons
               leftIcon ? "pl-10" : "pl-3",
               (rightIcon || isError || isSuccess) ? "pr-10" : "pr-3",
               
-              // Height
               "py-3",
               
-              // State-based styling
               isError ? [
                 "border-red-300 bg-red-50/50 text-red-900 placeholder-red-400",
                 "focus:border-red-500 focus:ring-red-500/20"
@@ -119,7 +113,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 "focus:border-indigo-500 focus:ring-indigo-500/20"
               ],
               
-              // Shadow
               !disabled && "shadow-sm hover:shadow-md focus:shadow-md",
               
               className
@@ -127,20 +120,16 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
 
-          {/* Right Side Icons (non-interactive). Render only when not using interactive rightIcon */}
-          {!(rightIcon && (type === 'password' || rightIcon.props?.onClick)) && (
+          {!(rightIcon && (type === 'password' || (React.isValidElement(rightIcon) && 'onClick' in (rightIcon.props as any)))) && (
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              {/* Success Icon */}
               {isSuccess && !rightIcon && (
                 <CheckCircleIcon className="h-5 w-5 text-green-400" />
               )}
               
-              {/* Error Icon */}
               {isError && !rightIcon && (
                 <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
               )}
               
-              {/* Custom Right Icon */}
               {rightIcon && !isError && (
                 <div className={cn(
                   "h-5 w-5 transition-colors duration-200",
@@ -153,8 +142,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
 
-          {/* Interactive Right Icon (clickable) */}
-          {rightIcon && (type === 'password' || rightIcon.props?.onClick) && (
+          {rightIcon && (type === 'password' || (React.isValidElement(rightIcon) && 'onClick' in (rightIcon.props as any))) && (
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
               <button
                 type="button"
@@ -165,7 +153,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                   isSuccess ? "text-green-400 hover:text-green-500" :
                   "text-gray-400 hover:text-gray-500"
                 )}
-                onClick={rightIcon.props?.onClick}
+                onClick={React.isValidElement(rightIcon) && 'onClick' in (rightIcon.props as any) ? (rightIcon.props as any).onClick : undefined}
               >
                 <div className="h-5 w-5">
                   {rightIcon}
@@ -174,14 +162,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
 
-          {/* Focus Ring Animation */}
           <div className={cn(
             "absolute inset-0 rounded-lg pointer-events-none transition-opacity duration-200",
             isFocused && !isError && !isSuccess && "ring-2 ring-indigo-500/20"
           )} />
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="mt-2 flex items-start space-x-2">
             <ExclamationTriangleIcon className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -189,7 +175,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </div>
         )}
 
-        {/* Success Message */}
         {isSuccess && typeof success === 'string' && (
           <div className="mt-2 flex items-start space-x-2">
             <CheckCircleIcon className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
@@ -197,7 +182,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </div>
         )}
 
-        {/* Helper Text */}
         {helperText && !error && !isSuccess && (
           <p className="mt-2 text-sm text-gray-500 leading-5">{helperText}</p>
         )}

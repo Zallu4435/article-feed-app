@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AppDataSource } from '@/lib/datasource';
 import { User } from '@/entities/User';
-import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +13,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate password strength
     if (password.length < 8) {
       return NextResponse.json(
         { message: 'Password must be at least 8 characters long' },
@@ -33,7 +31,6 @@ export async function POST(request: NextRequest) {
     await AppDataSource.initialize();
     const userRepository = AppDataSource.getRepository(User);
 
-    // Find user by email
     const user = await userRepository.findOne({
       where: { email: email.toLowerCase() }
     });
@@ -45,7 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has completed OTP verification (OTP is cleared after verification)
     if (user.passwordResetOtp !== null) {
       return NextResponse.json(
         { message: 'OTP verification required' },
@@ -53,7 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user password (hashing handled by entity hook)
     user.password = password;
     await userRepository.save(user);
 
@@ -63,7 +58,6 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('Reset password error:', error);
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

@@ -10,9 +10,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password } = body ?? {};
-    console.log('[LOGIN] Incoming email:', email);
 
-    // Basic validation
     const fieldErrors: Record<string, string> = {};
     if (!email) fieldErrors.email = "Email is required";
     else if (!/^\S+@\S+\.\S+$/.test(email)) fieldErrors.email = "Email is invalid";
@@ -29,9 +27,7 @@ export async function POST(request: NextRequest) {
     const userRepository = db.getRepository(User);
     const refreshTokenRepository = db.getRepository(RefreshToken);
 
-    // Find user by email
     const user = await userRepository.findOne({ where: { email } });
-    console.log('[LOGIN] User found:', Boolean(user));
     if (!user) {
       return NextResponse.json(
         { error: { code: "user_not_found", message: "No account found for this email" } },
@@ -39,9 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate password
     const isValidPassword = await user.validatePassword(password);
-    console.log('[LOGIN] Password valid:', isValidPassword);
 
     if (!isValidPassword) {
       return NextResponse.json(
@@ -50,16 +44,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate tokens
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
-    console.log('[LOGIN] Generated tokens lengths:', {
-      accessToken: accessToken?.length,
-      refreshToken: refreshToken?.length,
-    });
-    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+ 
+    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
 
-    // Store refresh token in DB
     await refreshTokenRepository.save(
       refreshTokenRepository.create({
         token: refreshToken,
@@ -68,10 +57,8 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
-    // Set cookies on the response
     const response = NextResponse.json({
       message: "Login successful",
       user: userWithoutPassword,
@@ -80,21 +67,20 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 15 * 60, // 15 minutes
+      maxAge: 15 * 60, 
       path: "/",
     });
     response.cookies.set("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      maxAge: 7 * 24 * 60 * 60, 
       path: "/",
     });
-    console.log('[LOGIN] Cookies set: access_token, refresh_token');
+
     return response;
 
   } catch (error) {
-    console.error("Login error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

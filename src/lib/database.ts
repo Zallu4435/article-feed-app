@@ -5,7 +5,7 @@ let isInitializing = false;
 let initializationPromise: Promise<any> | null = null;
 
 export const initializeDatabase = async () => {
-  // Prevent multiple simultaneous initializations
+
   if (isInitializing) {
     return initializationPromise;
   }
@@ -45,7 +45,6 @@ export const closeDatabase = async () => {
   }
 };
 
-// Health check function for Supabase
 export const checkDatabaseHealth = async () => {
   try {
     const dataSource = getDatabase();
@@ -63,5 +62,3 @@ export const checkDatabaseHealth = async () => {
   }
 };
 
-// Initialize database when this module is imported (server-side only)
-// Initialization is performed explicitly by API routes when needed

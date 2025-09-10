@@ -30,7 +30,6 @@ export class Article {
   @Column({ type: "simple-array", nullable: true })
   tags!: string[];
 
-  // Aggregate interaction fields stored on the article itself
   @Column({ type: "boolean", default: false })
   isBlocked!: boolean;
 
@@ -40,7 +39,6 @@ export class Article {
   @Column({ type: "integer", default: 0 })
   likesCount!: number;
 
-  // Per-user tracking stored inline (deduplicated on write)
   @Column({ type: "simple-array", nullable: true })
   viewers!: string[];
 
@@ -65,7 +63,6 @@ export class Article {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  // Relationships
   @ManyToOne(() => User)
   @JoinColumn({ name: "authorId" })
   author!: User;
@@ -74,5 +71,4 @@ export class Article {
   @JoinColumn({ name: "categoryId" })
   category!: Category;
 
-  // Inverse relation for interactions removed (not needed for current features)
 }

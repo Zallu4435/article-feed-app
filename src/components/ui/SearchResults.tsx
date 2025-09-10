@@ -12,7 +12,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
   const resultsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   
-  // Search for articles with the query
   const { data: searchData, isLoading } = useArticles({ 
     page: 1, 
     limit: 8, 
@@ -23,12 +22,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
   const articles = searchData?.articles || [];
   const totalResults = searchData?.pagination?.total || 0;
 
-  // Reset selected index when query changes
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
@@ -65,7 +62,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, selectedIndex, articles, query, router, onSelect, onClose]);
 
-  // Scroll selected item into view
   useEffect(() => {
     if (resultsRef.current) {
       const selectedElement = resultsRef.current.querySelector(`[data-index="${selectedIndex}"]`);
@@ -141,7 +137,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
               </Link>
             ))}
 
-            {/* View All Results */}
             {totalResults > articles.length && (
               <button
                 onClick={() => {

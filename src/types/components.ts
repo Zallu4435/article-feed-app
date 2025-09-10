@@ -1,7 +1,6 @@
-import type { ReactNode, InputHTMLAttributes, TextareaHTMLAttributes, HTMLAttributes } from 'react';
 import type { VariantProps } from 'class-variance-authority';
+import type React from 'react';
 
-// Component-specific interfaces
 export interface ProfilePictureUploadProps {
   currentImageUrl?: string | null;
   onUploaded: (url: string) => void;
@@ -32,12 +31,10 @@ export interface SearchResultsProps {
 export interface WarningDialogProps {
   title?: string;
   description?: string;
-  confirmText?: string;
-  cancelText?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   onConfirm: () => void;
-  onCancel?: () => void;
-  isOpen: boolean;
-  onClose: () => void;
+  onCancel: () => void;
 }
 
 export interface AuthGuardProps {
@@ -49,13 +46,29 @@ export interface EnhancedSelectProps extends Omit<SelectDropdownProps, 'onChange
   error?: string;
   helperText?: string;
   success?: boolean | string;
+  required?: boolean;
+  variant?: 'default' | 'minimal' | 'filled';
+  size?: 'sm' | 'default' | 'lg';
+  clearable?: boolean;
+  searchable?: boolean;
+  multiple?: boolean;
+  loading?: boolean;
+  leftIcon?: React.ReactNode;
+  onChange?: (value: string | string[]) => void;
+  onClear?: () => void;
+  onSearch?: (query: string) => void;
 }
 
 export interface EnhancedTextAreaProps extends TextAreaProps {
   success?: boolean | string;
+  required?: boolean;
+  maxLength?: number;
+  showCharCount?: boolean;
+  resize?: 'none' | 'both' | 'horizontal' | 'vertical' | 'auto';
+  variant?: 'default' | 'minimal' | 'filled';
+  size?: 'sm' | 'default' | 'lg';
 }
 
-// Enhanced Card component types
 export interface EnhancedCardProps extends CardProps, VariantProps<typeof cardVariants> {
   hover?: boolean;
 }
@@ -74,7 +87,6 @@ export interface EnhancedCardContentProps extends CardContentProps, VariantProps
 
 export interface EnhancedCardFooterProps extends CardFooterProps, VariantProps<typeof cardFooterVariants> {}
 
-// Import UI types that are referenced
 import type { 
   SelectDropdownProps, 
   TextAreaProps, 
@@ -84,8 +96,6 @@ import type {
   CardFooterProps 
 } from './ui';
 
-// Import card variants (these would need to be defined in the Card component file)
-// For now, we'll use any to avoid circular dependencies
 declare const cardVariants: any;
 declare const cardHeaderVariants: any;
 declare const cardTitleVariants: any;

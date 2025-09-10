@@ -55,29 +55,24 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  // Relationships are defined on owning sides (e.g., Article, UserPreference)
-
   @OneToMany('UserPreference', (preference: UserPreference) => preference.user)
   preferences!: UserPreference[];
 
 
-  // Hash password before insert/update
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {
     if (!this.password) return;
-    // Avoid double-hashing: if it already looks like a bcrypt hash, skip
+
     const looksHashed = this.password.startsWith('$2a$') || this.password.startsWith('$2b$');
     if (looksHashed) return;
     this.password = await bcrypt.hash(this.password, 12);
   }
 
-  // Method to check password
   async validatePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
   }
 
-  // Method to get full name
   getFullName(): string {
     return `${this.firstName} ${this.lastName}`;
   }

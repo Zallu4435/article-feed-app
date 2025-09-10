@@ -21,10 +21,11 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 import useSWR from 'swr';
+import { apiFetch } from '@/lib/api';
 
 import { registerSchema, type RegisterFormData } from '@/schemas/auth/register';
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+const fetcher = (url: string) => apiFetch<{ categories: Array<{ id: string; name: string }> }>(url);
 
 const RegisterPage: React.FC = () => {
   const { register: registerUser, loading, refreshProfile } = useAuth();
@@ -75,14 +76,11 @@ const RegisterPage: React.FC = () => {
           password: data.password,
         }),
       });
-      console.log('[register:initiate] status', res.status);
       if (!res.ok) {
         const payload = await res.json();
-        console.error('[register:initiate] error payload', payload);
         throw (payload?.error ?? { code: 'unknown_error', message: 'Failed to send OTP' });
       }
       const dataJson = await res.json().catch(() => ({}));
-      console.log('[register:initiate] response', dataJson);
       setPendingForm(data);
       setStep(2);
       toast.success('Verification code sent to your email');
@@ -105,7 +103,6 @@ const RegisterPage: React.FC = () => {
         return;
       }
       toast.error(err?.message || 'Failed to send OTP');
-      console.error('[register:initiate] caught error', err);
     }
   };
 
@@ -135,7 +132,6 @@ const RegisterPage: React.FC = () => {
       setResendCooldown(60);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to resend code');
-      console.error('[register:resend] error', err);
     }
   };
 
@@ -153,7 +149,6 @@ const RegisterPage: React.FC = () => {
       });
       if (!res.ok) {
         const payload = await res.json();
-        console.error('[register:verify] error payload', payload);
         if (payload?.error?.code === 'otp_invalid') {
           setOtpError('Invalid verification code');
         } else if (payload?.error?.code === 'otp_expired') {
@@ -164,7 +159,6 @@ const RegisterPage: React.FC = () => {
         throw (payload?.error ?? { code: 'unknown_error', message: 'Verification failed' });
       }
       const verified = await res.json().catch(() => ({}));
-      console.log('[register:verify] response', verified);
       // User is created and cookies set by verify API; refresh profile and move to preferences step
       await refreshProfile();
       setStep(3);
@@ -187,7 +181,6 @@ const RegisterPage: React.FC = () => {
         return;
       }
       toast.error(err?.message || 'Verification failed');
-      console.error('[register:verify] caught error', err);
     }
   };
 
@@ -196,10 +189,9 @@ const RegisterPage: React.FC = () => {
       if (selectedCategories.length) {
         await Promise.all(
           selectedCategories.map((categoryId) =>
-            fetch('/api/users/preferences', {
+            apiFetch('/api/users/preferences', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ categoryId }),
+              body: { categoryId },
             })
           )
         );
@@ -207,7 +199,6 @@ const RegisterPage: React.FC = () => {
       toast.success('Registration successful!');
       router.push('/dashboard');
     } catch (err) {
-      console.error('[register:complete] error', err);
       toast.error('Failed to save preferences');
     }
   };

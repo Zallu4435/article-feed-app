@@ -7,7 +7,6 @@ import { verifyAccessToken } from '@/lib/jwt';
 export const runtime = 'nodejs';
 
 function getUserIdFromRequest(request: NextRequest): string | null {
-  // Prefer HTTP-only cookie set at login
   const cookieToken = request.cookies.get('access_token')?.value;
   const headerAuth = request.headers.get('authorization');
   const headerToken = headerAuth?.startsWith('Bearer ')
@@ -47,18 +46,16 @@ export async function POST(request: NextRequest) {
     const ok = await bcrypt.compare(currentPassword, user.password);
     if (!ok) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 });
 
-    // Prevent using the same password as the existing one
     const sameAsOld = await bcrypt.compare(newPassword, user.password);
     if (sameAsOld) {
       return NextResponse.json({ error: 'New password must be different from current password' }, { status: 400 });
     }
 
-    user.password = newPassword; // will be hashed by entity hook
+    user.password = newPassword; 
     await repo.save(user);
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error('Change password error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

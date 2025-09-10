@@ -1,3 +1,5 @@
+import type { CategoryResponse } from './category';
+
 export interface UserResponse {
   id: string;
   firstName: string;
@@ -31,5 +33,3 @@ export interface UserPreferenceResponse {
   category?: CategoryResponse;
 }
 
-// Import CategoryResponse for type reference
-import type { CategoryResponse } from './category';

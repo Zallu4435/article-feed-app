@@ -22,7 +22,9 @@ import { useInteract, block as blockAction, unblock as unblockAction } from '@/h
 import { AuthGuard } from '@/components/ui/AuthGuard';
 import { WarningDialog } from '@/components/ui/WarningDialog';
 import { useArticles, useDeleteArticle } from '@/hooks/useArticles';
+import { apiFetch } from '@/lib/api';
 import { useCategories } from '@/hooks/useUser';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 const ListMyArticlesPage: React.FC = () => {
   const [view, setView] = useState<'table' | 'card'>('table'    );
@@ -30,9 +32,10 @@ const ListMyArticlesPage: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
-  const [confirm, setConfirm] = useState<{ mode: 'block' | 'unblock' | 'delete'; id: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ mode: 'block' | 'unblock' | 'delete' | 'deleteMany'; id?: string; ids?: string[] } | null>(null);
   const pageSize = 6;
   const interact = useInteract();
+  const deleteArticle = useDeleteArticle();
   const cats = useCategories();
   const [categoryId, setCategoryId] = useState<string>('all');
   const categoryOptions: Option[] = React.useMemo(() => {
@@ -46,7 +49,6 @@ const ListMyArticlesPage: React.FC = () => {
   const totalPages = Math.max(1, Number(articlesQuery.data?.pagination?.totalPages || 1));
   const isLoading = articlesQuery.isLoading;
 
-  // Debounce search input
   useEffect(() => {
     const handle = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -54,12 +56,10 @@ const ListMyArticlesPage: React.FC = () => {
     return () => clearTimeout(handle);
   }, [search]);
 
-  // Reset to first page when search changes
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
 
-  // Reset to first page when category filter changes
   useEffect(() => {
     setPage(1);
   }, [categoryId]);
@@ -74,8 +74,8 @@ const ListMyArticlesPage: React.FC = () => {
   };
 
   const bulkDelete = () => {
-    alert(`Bulk delete not implemented yet`);
-    setSelected([]);
+    if (selected.length === 0) return;
+    setConfirm({ mode: 'deleteMany', ids: selected.slice() });
   };
 
   return (
@@ -139,7 +139,9 @@ const ListMyArticlesPage: React.FC = () => {
             </div>
 
             {isLoading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
+              <div className="py-10 flex items-center justify-center">
+                <LoadingSpinner size={28} text="Loading articles..." />
+              </div>
             ) : articles.length === 0 ? (
               (debouncedSearch || categoryId !== 'all') ? (
                 <EmptyState
@@ -201,7 +203,7 @@ const ListMyArticlesPage: React.FC = () => {
                                 <NoSymbolIcon className="h-5 w-5" />
                               </button>
                             )}
-                            <button className="text-red-600 hover:text-red-700">
+                            <button className="text-red-600 hover:text-red-700" onClick={() => setConfirm({ mode: 'delete', id: a.id })}>
                               <TrashIcon className="h-5 w-5" />
                             </button>
                           </div>
@@ -246,7 +248,7 @@ const ListMyArticlesPage: React.FC = () => {
                           <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-800">{a.category?.name || 'Article'}</span>
                           <span>{new Date(a.createdAt).toLocaleDateString()}</span>
                         </div>
-                        <button className="text-red-600 hover:text-red-700" title="Delete">
+                        <button className="text-red-600 hover:text-red-700" title="Delete" onClick={() => setConfirm({ mode: 'delete', id: a.id })}>
                           <TrashIcon className="h-4 w-4" />
                         </button>
                       </div>
@@ -269,15 +271,41 @@ const ListMyArticlesPage: React.FC = () => {
         </Card>
         {confirm && (
           <WarningDialog
-            title={confirm.mode === 'block' ? 'Block this article?' : confirm.mode === 'unblock' ? 'Unblock this article?' : 'Are you sure?'}
-            description={confirm.mode === 'block' ? 'Blocked articles are hidden from everyone until unblocked.' : confirm.mode === 'unblock' ? 'This article will be visible to everyone again.' : 'This action cannot be undone.'}
-            confirmLabel={confirm.mode === 'block' ? 'Block' : confirm.mode === 'unblock' ? 'Unblock' : 'Confirm'}
+            title={
+              confirm.mode === 'block'
+                ? 'Block this article?'
+                : confirm.mode === 'unblock'
+                ? 'Unblock this article?'
+                : confirm.mode === 'deleteMany'
+                ? 'Delete selected articles?'
+                : 'Delete this article?'
+            }
+            description={
+              confirm.mode === 'block'
+                ? 'Blocked articles are hidden from everyone until unblocked.'
+                : confirm.mode === 'unblock'
+                ? 'This article will be visible to everyone again.'
+                : confirm.mode === 'deleteMany'
+                ? `This action cannot be undone. This will permanently delete ${confirm.ids?.length || 0} article(s).`
+                : 'This action cannot be undone. This will permanently delete the article.'
+            }
+            confirmLabel={confirm.mode === 'block' ? 'Block' : confirm.mode === 'unblock' ? 'Unblock' : 'Delete'}
             cancelLabel="Cancel"
             onCancel={() => setConfirm(null)}
             onConfirm={() => {
               if (!confirm) return;
-              if (confirm.mode === 'block') interact.mutate(blockAction(confirm.id));
-              if (confirm.mode === 'unblock') interact.mutate(unblockAction(confirm.id));
+              if (confirm.mode === 'block' && confirm.id) interact.mutate(blockAction(confirm.id));
+              if (confirm.mode === 'unblock' && confirm.id) interact.mutate(unblockAction(confirm.id));
+              if (confirm.mode === 'delete' && confirm.id) deleteArticle.mutate(confirm.id);
+              if (confirm.mode === 'deleteMany' && confirm.ids && confirm.ids.length) {
+                apiFetch<{ deleted: number }>(
+                  '/api/articles/bulk-delete',
+                  { method: 'POST', body: { ids: confirm.ids } }
+                )
+                  .then(() => setSelected([]))
+                  .catch(() => {})
+                  .finally(() => articlesQuery.refetch());
+              }
               setConfirm(null);
             }}
           />

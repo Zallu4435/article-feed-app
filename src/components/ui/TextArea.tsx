@@ -2,16 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import type { TextAreaProps } from '@/types/ui';
-
-interface EnhancedTextAreaProps extends TextAreaProps {
-  success?: boolean | string;
-  required?: boolean;
-  maxLength?: number;
-  showCharCount?: boolean;
-  resize?: 'none' | 'both' | 'horizontal' | 'vertical' | 'auto';
-  variant?: 'default' | 'minimal' | 'filled';
-  size?: 'sm' | 'default' | 'lg';
-}
+import type { EnhancedTextAreaProps } from '@/types/components';
 
 const TextArea = React.forwardRef<HTMLTextAreaElement, EnhancedTextAreaProps>(
   ({ 
@@ -61,12 +52,10 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, EnhancedTextAreaProps>(
       setCharCount(String(currentValue).length);
     }, [value, defaultValue]);
 
-    // Determine states for styling
     const isError = !!error;
     const isSuccess = success && !isError;
     const isActive = isFocused;
 
-    // Size configurations
     const sizeConfig = {
       sm: {
         padding: 'px-3 py-2',
@@ -90,7 +79,6 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, EnhancedTextAreaProps>(
 
     const currentSize = sizeConfig[size];
 
-    // Variant configurations
     const getVariantClasses = () => {
       const baseClasses = `
         block w-full rounded-lg border transition-all duration-200 
@@ -136,7 +124,6 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, EnhancedTextAreaProps>(
         );
       }
 
-      // Default variant
       return cn(baseClasses,
         isError ? [
           'border-red-300 bg-red-50/50 text-red-900 placeholder-red-400',
@@ -156,7 +143,6 @@ const TextArea = React.forwardRef<HTMLTextAreaElement, EnhancedTextAreaProps>(
       );
     };
 
-    // Resize classes
     const getResizeClasses = () => {
       switch (resize) {
         case 'none': return 'resize-none';

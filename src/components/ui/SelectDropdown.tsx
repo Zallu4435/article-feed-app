@@ -7,23 +7,7 @@ import {
   XMarkIcon 
 } from '@heroicons/react/24/outline';
 import type { Option, SelectDropdownProps } from '@/types/ui';
-
-interface EnhancedSelectProps extends Omit<SelectDropdownProps, 'onChange'> {
-  error?: string;
-  helperText?: string;
-  success?: boolean | string;
-  required?: boolean;
-  variant?: 'default' | 'minimal' | 'filled';
-  size?: 'sm' | 'default' | 'lg';
-  clearable?: boolean;
-  searchable?: boolean;
-  multiple?: boolean;
-  loading?: boolean;
-  leftIcon?: React.ReactNode;
-  onChange?: (value: string | string[]) => void;
-  onClear?: () => void;
-  onSearch?: (query: string) => void;
-}
+import type { EnhancedSelectProps } from '@/types/components';
 
 const SelectDropdown: React.FC<EnhancedSelectProps> = ({
   options,
@@ -52,7 +36,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
   const selectRef = React.useRef<HTMLDivElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Close dropdown when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
@@ -67,14 +50,12 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
     };
   }, []);
 
-  // Focus search input when dropdown opens
   React.useEffect(() => {
     if (isOpen && searchable && searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, [isOpen, searchable]);
 
-  // Filter options based on search query
   const filteredOptions = React.useMemo(() => {
     if (!searchQuery) return options;
     return options.filter(option =>
@@ -83,7 +64,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
     );
   }, [options, searchQuery]);
 
-  // Get selected option(s) for display
   const getSelectedOptions = () => {
     if (multiple && Array.isArray(value)) {
       return options.filter(option => value.includes(option.value));
@@ -93,7 +73,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
 
   const selectedOptions = getSelectedOptions();
 
-  // Handle option selection
   const handleOptionSelect = (optionValue: string) => {
     if (multiple) {
       const currentValues: string[] = Array.isArray(value) ? value : [];
@@ -108,7 +87,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
     }
   };
 
-  // Handle clear
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
     onChange?.(multiple ? [] : '');
@@ -116,18 +94,15 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
     setSearchQuery('');
   };
 
-  // Handle search
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     onSearch?.(query);
   };
 
-  // Determine states for styling
   const isError = !!error;
   const isSuccess = success && !isError;
   const hasValue = multiple ? Array.isArray(value) && value.length > 0 : !!value;
 
-  // Size configurations
   const sizeConfig = {
     sm: {
       padding: 'px-3 py-2',
@@ -151,7 +126,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
 
   const currentSize = sizeConfig[size];
 
-  // Get trigger classes based on variant
   const getTriggerClasses = () => {
     const baseClasses = `
       w-full ${currentSize.height} ${currentSize.padding} ${currentSize.text}
@@ -197,7 +171,6 @@ const SelectDropdown: React.FC<EnhancedSelectProps> = ({
       );
     }
 
-    // Default variant
     return cn(baseClasses,
       isError ? [
         'border-red-300 bg-red-50/50 text-red-900',

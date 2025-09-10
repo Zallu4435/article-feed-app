@@ -153,11 +153,6 @@ npm run dev
 - userId, categoryId (Foreign Keys)
 - createdAt
 
-### ArticleInteractions
-- id (UUID, Primary Key)
-- userId, articleId (Foreign Keys)
-- type (like/dislike/block)
-- createdAt
 
 ## Project Structure
 

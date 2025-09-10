@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AppDataSource } from '@/lib/datasource';
 import { User } from '@/entities/User';
+import { MoreThan } from 'typeorm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,11 +18,10 @@ export async function GET(request: NextRequest) {
     await AppDataSource.initialize();
     const userRepository = AppDataSource.getRepository(User);
 
-    // Find user with valid reset token
     const user = await userRepository.findOne({
       where: {
         resetToken: token,
-        resetTokenExpiry: MoreThan(new Date()) // Token not expired
+        resetTokenExpiry: MoreThan(new Date()) 
       }
     });
 

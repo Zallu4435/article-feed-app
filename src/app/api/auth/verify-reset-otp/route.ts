@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate OTP format
     if (!/^\d{6}$/.test(otp)) {
       return NextResponse.json(
         { message: 'Please enter a valid 6-digit code' },
@@ -25,12 +24,11 @@ export async function POST(request: NextRequest) {
     await AppDataSource.initialize();
     const userRepository = AppDataSource.getRepository(User);
 
-    // Find user with valid OTP
     const user = await userRepository.findOne({
       where: {
         email: email.toLowerCase(),
         passwordResetOtp: otp,
-        passwordResetOtpExpiry: MoreThan(new Date()) // OTP not expired
+        passwordResetOtpExpiry: MoreThan(new Date()) 
       }
     });
 
@@ -41,9 +39,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clear the OTP after successful verification
-    user.passwordResetOtp = null;
-    user.passwordResetOtpExpiry = null;
+    user.passwordResetOtp = undefined;
+    user.passwordResetOtpExpiry = undefined;
     await userRepository.save(user);
 
     return NextResponse.json(

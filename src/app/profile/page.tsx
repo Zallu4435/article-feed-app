@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/Card';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Input } from '@/components/ui/Input';
@@ -9,14 +8,13 @@ import { Button } from '@/components/ui/Button';
 import { useProfile, useUpdateProfile } from '@/hooks/useUser';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { profileSchema, type ProfileFormData } from '@/schemas/user/profile';
+import { profileSchema } from '@/schemas/user/profile';
 import { toast } from 'react-hot-toast';
 import { CalendarIcon, EnvelopeIcon, PhoneIcon, UserIcon } from '@heroicons/react/24/outline';
 import { AuthGuard } from '@/components/ui/AuthGuard';
 import ProfilePictureUpload from '@/components/ui/ProfilePictureUpload';
 
 export default function ProfilePage() {
-  const { isAuthenticated } = useAuth();
   const { data, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
 
@@ -68,11 +66,9 @@ export default function ProfilePage() {
               <ProfilePictureUpload
                 currentImageUrl={user?.profilePicture}
                 onUploaded={() => {
-                  // Refresh profile data to show updated picture
                   window.location.reload();
                 }}
                 onRemove={() => {
-                  // Refresh profile data to show removed picture
                   window.location.reload();
                 }}
                 size="sm"

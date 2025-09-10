@@ -6,7 +6,6 @@ import { getDatabase, initializeDatabase } from "@/lib/database";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -17,7 +16,6 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
     
-    // Authenticate user
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) {
@@ -46,7 +44,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type - only PNG and JPG
     const allowedTypes = ["image/jpeg", "image/png"];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -55,8 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (5MB limit)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 5 * 1024 * 1024; 
     if (file.size > maxSize) {
       return NextResponse.json(
         { error: "File size too large. Maximum size is 5MB." },
@@ -64,11 +60,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary with profile-specific folder
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
@@ -85,7 +79,6 @@ export async function POST(request: NextRequest) {
     const imageUrl = (result as any).secure_url;
     const publicId = (result as any).public_id;
 
-    // Update user's profile picture in database
     const { User } = await import("@/entities/User");
     const userRepository = getDatabase().getRepository(User);
     
@@ -94,26 +87,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Delete old profile picture if it exists
     if (user.profilePicture) {
       try {
-        // Extract public ID from Cloudinary URL
-        // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/folder/filename.jpg
         const urlParts = user.profilePicture.split('/');
         const uploadIndex = urlParts.findIndex(part => part === 'upload');
         if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
-          // Get the part after 'upload/v1234567890/' which is 'folder/filename'
           const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
-          // Remove file extension
+
           const publicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
           await cloudinary.uploader.destroy(publicId);
         }
       } catch (error) {
-        console.warn('Failed to delete old profile picture:', error);
+
       }
     }
 
-    // Update user with new profile picture
     user.profilePicture = imageUrl;
     await userRepository.save(user);
 
@@ -124,7 +112,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Profile picture upload error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

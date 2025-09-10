@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function getUserIdFromRequest(request: NextRequest): string | null {
-  // Prefer Authorization header, fallback to access_token cookie
+
   let token: string | undefined;
   const auth = request.headers.get('authorization');
   if (auth) token = auth.split(' ')[1];
@@ -23,6 +23,7 @@ function getUserIdFromRequest(request: NextRequest): string | null {
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
+
     const userId = getUserIdFromRequest(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -37,7 +38,6 @@ export async function POST(request: NextRequest) {
     const { Article } = await import("@/entities/Article");
     const articleRepo = db.getRepository(Article);
 
-    // Authorize global block/unblock by article author only
     if (type === 'block' || type === 'unblock') {
       const article = await articleRepo.findOne({ where: { id: articleId } });
       if (!article || (article as any).authorId !== userId) {
@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // Like / Dislike / Bookmark mutate counters and per-user arrays
     const art = await articleRepo.findOne({ where: { id: articleId } });
     if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const likers: string[] = Array.isArray((art as any).likers) ? (art as any).likers : ((art as any).likers ? String((art as any).likers).split(',').filter(Boolean) : []);
@@ -91,7 +90,6 @@ export async function POST(request: NextRequest) {
     await articleRepo.save(art as any);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Interaction error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

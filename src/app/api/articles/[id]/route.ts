@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase, initializeDatabase } from "@/lib/database";
-// Defer entity import
 import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Configure Cloudinary for server-side deletion
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -16,18 +14,17 @@ cloudinary.config({
 function getCloudinaryPublicIdFromUrl(url: string): string | null {
   try {
     const u = new URL(url);
-    const path = u.pathname; // e.g., /image/upload/v123/article-feeds-app/my-image.jpg
+    const path = u.pathname; 
     const marker = "/upload/";
     const idx = path.indexOf(marker);
     if (idx === -1) return null;
-    let sub = path.substring(idx + marker.length); // v123/article-feeds-app/my-image.jpg
+    let sub = path.substring(idx + marker.length); 
     const parts = sub.split("/");
     if (parts[0] && /^v\d+$/.test(parts[0])) {
-      parts.shift(); // remove version
+      parts.shift(); 
     }
-    // Rejoin and strip extension
-    const withoutVersion = parts.join("/"); // article-feeds-app/my-image.jpg
-    const withoutExt = withoutVersion.replace(/\.[^/.]+$/, ""); // article-feeds-app/my-image
+    const withoutVersion = parts.join("/"); 
+    const withoutExt = withoutVersion.replace(/\.[^/.]+$/, ""); 
     return withoutExt || null;
   } catch {
     return null;
@@ -49,7 +46,6 @@ export async function GET(
       );
     }
 
-    // Try to resolve current user for likedByCurrentUser flag
     let currentUserId: string | undefined;
     const auth = request.headers.get('authorization');
     let token: string | undefined = auth ? auth.split(' ')[1] : request.cookies.get('access_token')?.value;
@@ -63,7 +59,6 @@ export async function GET(
     const { Article } = await import("@/entities/Article");
     const articleRepository = getDatabase().getRepository(Article);
 
-    // Exclude globally blocked articles (if any block interaction exists)
     const article = await articleRepository
       .createQueryBuilder('article')
       .leftJoinAndSelect('article.author', 'author')
@@ -79,7 +74,6 @@ export async function GET(
       );
     }
 
-    // Add user interaction flags
     const articleWithFlags = {
       ...article,
       likedByCurrentUser: currentUserId ? (Array.isArray((article as any).likers) ? (article as any).likers.includes(currentUserId) : ((article as any).likers ? String((article as any).likers).split(',').filter(Boolean).includes(currentUserId) : false)) : false,
@@ -89,7 +83,6 @@ export async function GET(
     return NextResponse.json({ article: articleWithFlags });
 
   } catch (error) {
-    console.error("Get article error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -103,7 +96,7 @@ export async function PUT(
 ) {
   try {
     await initializeDatabase();
-    // Authenticate user
+
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) {
@@ -124,7 +117,6 @@ export async function PUT(
 
     const articleRepository = getDatabase().getRepository(Article);
 
-    // Find article and check ownership
     const article = await articleRepository.findOne({ where: { id, authorId: userId } });
 
     if (!article) {
@@ -134,7 +126,6 @@ export async function PUT(
       );
     }
 
-    // If imageUrl is being changed, delete old image from Cloudinary
     if (imageUrl !== undefined && imageUrl !== null && imageUrl !== (article as any).imageUrl && (article as any).imageUrl) {
       const oldUrl = (article as any).imageUrl as string;
       const publicId = getCloudinaryPublicIdFromUrl(oldUrl);
@@ -142,13 +133,11 @@ export async function PUT(
         try {
           await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
         } catch (e) {
-          // Log but don't fail the whole request if cleanup fails
-          console.warn("Cloudinary destroy failed for", publicId);
+          console.warn('Failed to delete image from Cloudinary:', e);
         }
       }
     }
 
-    // Update article
     Object.assign(article, {
       title: title || article.title,
       description: description || article.description,
@@ -166,7 +155,6 @@ export async function PUT(
     });
 
   } catch (error) {
-    console.error("Update article error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -180,7 +168,7 @@ export async function DELETE(
 ) {
   try {
     await initializeDatabase();
-    // Authenticate user
+
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) {
@@ -197,7 +185,6 @@ export async function DELETE(
 
     const articleRepository = getDatabase().getRepository(Article);
 
-    // Find article and check ownership
     const article = await articleRepository.findOne({ where: { id, authorId: userId } });
 
     if (!article) {
@@ -207,14 +194,13 @@ export async function DELETE(
       );
     }
 
-    // Best-effort: delete image from Cloudinary if present
     if ((article as any).imageUrl) {
       const publicId = getCloudinaryPublicIdFromUrl((article as any).imageUrl as string);
       if (publicId) {
         try {
           await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
         } catch (e) {
-          console.warn("Cloudinary destroy failed for", publicId);
+            console.warn('Failed to delete image from Cloudinary:', e);
         }
       }
     }
@@ -226,7 +212,6 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error("Delete article error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -13,7 +12,6 @@ cloudinary.config({
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate via Authorization header or access_token cookie (no DB hit)
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) {
@@ -34,7 +32,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -43,7 +40,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (5MB limit)
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       return NextResponse.json(
@@ -52,11 +48,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
@@ -77,7 +71,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Upload error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

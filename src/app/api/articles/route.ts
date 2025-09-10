@@ -14,29 +14,35 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const excludeBlocked = (searchParams.get("excludeBlocked") || 'true') === 'true';
 
-    // Try to resolve current user for likedByCurrentUser flag
-    let currentUserId: string | undefined;
+    let token: string | undefined;
     const auth = request.headers.get('authorization');
-    let token: string | undefined = auth ? auth.split(' ')[1] : request.cookies.get('access_token')?.value;
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId?: string };
-        if (decoded?.userId) currentUserId = decoded.userId;
-      } catch {}
-    }
+    if (auth) token = auth.split(' ')[1];
+    if (!token) token = request.cookies.get('access_token')?.value;
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const currentUserId = decoded.userId;
 
     const { Article } = await import("@/entities/Article");
     const articleRepository = getDatabase().getRepository(Article);
     const queryBuilder = articleRepository
       .createQueryBuilder("article")
-      .leftJoinAndSelect("article.author", "author")
-      .leftJoinAndSelect("article.category", "category");
+      .leftJoinAndSelect("article.category", "category")
+      .select([
+        "article.id",
+        "article.title", 
+        "article.description",
+        "article.createdAt",
+        "article.isBlocked",
+        "category.id",
+        "category.name"
+      ]);
 
     if (excludeBlocked) {
       queryBuilder.andWhere('article."isBlocked" = false');
     }
+    queryBuilder.andWhere('article.authorId = :authorId', { authorId: currentUserId });
 
-    // Apply filters
     if (categoryId) {
       const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(categoryId);
       if (isUuid) {
@@ -48,40 +54,28 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       queryBuilder.andWhere(
-        "(article.title ILIKE :search OR article.description ILIKE :search OR article.content ILIKE :search)",
+        "(article.title ILIKE :search OR article.description ILIKE :search OR article.content ILIKE :search OR article.tags ILIKE :search)",
         { search: `%${search}%` }
       );
     }
 
-    // Get total count
     const total = await queryBuilder.getCount();
 
-    // Apply pagination
     const articles = await queryBuilder
       .orderBy("article.createdAt", "DESC")
       .skip((page - 1) * limit)
       .take(limit)
       .getMany();
 
-    // Summarize payload for list views
     const summarized = articles.map((a: any) => ({
       id: a.id,
       title: a.title,
       description: a.description,
-      imageUrl: a.imageUrl ?? null,
       createdAt: a.createdAt,
-      author: a.author
-        ? { id: a.author.id, firstName: a.author.firstName, lastName: a.author.lastName, profilePicture: a.author.profilePicture }
-        : null,
       category: a.category
         ? { id: a.category.id, name: a.category.name }
         : null,
       isBlocked: !!a.isBlocked,
-      viewsCount: Number(a.viewsCount || 0),
-      likesCount: Number(a.likesCount || 0),
-      likedByCurrentUser: currentUserId ? (Array.isArray(a.likers) ? a.likers.includes(currentUserId) : (a.likers ? String(a.likers).split(',').filter(Boolean).includes(currentUserId) : false)) : false,
-      bookmarksCount: Number(a.bookmarksCount || 0),
-      bookmarkedByCurrentUser: currentUserId ? (Array.isArray(a.bookmarkers) ? a.bookmarkers.includes(currentUserId) : (a.bookmarkers ? String(a.bookmarkers).split(',').filter(Boolean).includes(currentUserId) : false)) : false,
     }));
 
     return NextResponse.json({
@@ -95,7 +89,6 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Get articles error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -106,7 +99,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
-    // Authenticate user via Authorization header or access_token cookie
+
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) {
@@ -123,7 +116,6 @@ export async function POST(request: NextRequest) {
       title?: string; description?: string; content?: string; imageUrl?: string | null; tags?: string[]; categoryId?: string;
     };
 
-    // Validation
     if (!title || !description || !content || !categoryId) {
       return NextResponse.json(
         { error: "Title, description, content, and categoryId are required" },
@@ -136,7 +128,6 @@ export async function POST(request: NextRequest) {
     const decoded = token ? (jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }) : undefined;
     const userId = decoded?.userId;
 
-    // Create article
     const article = articleRepository.create({
       title,
       description,
@@ -162,7 +153,6 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error("Create article error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

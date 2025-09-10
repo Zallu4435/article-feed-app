@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate email format
     const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -26,36 +25,31 @@ export async function POST(request: NextRequest) {
     await AppDataSource.initialize();
     const userRepository = AppDataSource.getRepository(User);
 
-    // Find user by email
     const user = await userRepository.findOne({
       where: { email: email.toLowerCase() }
     });
 
     if (!user) {
-      // Don't reveal if user exists or not for security
       return NextResponse.json(
         { message: 'If an account with that email exists, we\'ve sent a verification code.' },
         { status: 200 }
       );
     }
 
-    // Generate OTP
     const otp = generateOtp(6);
-    const otpExpiry = new Date(Date.now() + 600000); // 10 minutes from now
+    const otpExpiry = new Date(Date.now() + 600000); 
 
-    // Update user with OTP
     user.passwordResetOtp = otp;
     user.passwordResetOtpExpiry = otpExpiry;
     await userRepository.save(user);
 
-    // Send OTP email
     try {
       await sendOtpEmail(user.email, otp);
     } catch (emailError) {
       console.error('Failed to send OTP email:', emailError);
-      // Clear the OTP if email fails
-      user.passwordResetOtp = null;
-      user.passwordResetOtpExpiry = null;
+
+      user.passwordResetOtp = undefined;
+      user.passwordResetOtpExpiry = undefined;
       await userRepository.save(user);
       
       return NextResponse.json(

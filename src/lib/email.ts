@@ -7,7 +7,6 @@ const smtpPass = process.env.SMTP_PASS as string;
 const fromEmail = process.env.EMAIL_FROM as string;
 
 if (!smtpHost || !smtpUser || !smtpPass || !fromEmail) {
-  // Intentionally not throwing during import to avoid build-time failure in non-email flows
   console.warn("SMTP configuration is missing. Email sending will not work until configured.");
 }
 

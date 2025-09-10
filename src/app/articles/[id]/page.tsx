@@ -5,11 +5,8 @@ import { useParams } from 'next/navigation';
 import { useArticle } from '@/hooks/useArticles';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
-import { 
-  HandThumbUpIcon,
-  HandThumbDownIcon,
+import {
   ShareIcon,
   HeartIcon,
   HeartIcon as HeartSolidIcon,
@@ -17,13 +14,14 @@ import {
   BookmarkIcon as BookmarkSolidIcon,
   EyeIcon,
   ClockIcon,
-  UserIcon,
   TagIcon,
 } from '@heroicons/react/24/outline';
 import { useInteract, like, dislike, bookmark, unbookmark } from '@/hooks/useInteractions';
 import { AuthGuard } from '@/components/ui/AuthGuard';
 import ShareModal from '@/components/ui/ShareModal';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { apiFetch } from '@/lib/api';
 
 const ArticleViewPage: React.FC = () => {
   const params = useParams<{ id: string }>();
@@ -40,7 +38,6 @@ const ArticleViewPage: React.FC = () => {
   const { data } = useArticle(params.id);
   const article = (data?.article as any) || null;
 
-  // Initialize interaction states from article data
   useEffect(() => {
     if (article) {
       setLiked(!!article.likedByCurrentUser);
@@ -50,15 +47,12 @@ const ArticleViewPage: React.FC = () => {
     }
   }, [article]);
 
-  // Record unique view on mount when article is loaded
   useEffect(() => {
     if (!article) return;
-    fetch('/api/article-views', {
+    apiFetch('/api/article-views', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ articleId: String(params.id) })
-    }).catch(() => {});
+      body: { articleId: String(params.id) }
+    }).catch(() => { });
   }, [article, params.id]);
 
   useEffect(() => {
@@ -80,10 +74,7 @@ const ArticleViewPage: React.FC = () => {
   if (!article) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading article...</p>
-        </div>
+        <LoadingSpinner size={48} text="Loading article..." />
       </div>
     );
   }
@@ -100,20 +91,6 @@ const ArticleViewPage: React.FC = () => {
         setDisliked(false);
       }
       interact.mutate(like(String(params.id)));
-    }
-  };
-
-  const handleDislike = () => {
-    if (disliked) {
-      setDisliked(false);
-      interact.mutate(like(String(params.id)));
-    } else {
-      setDisliked(true);
-      if (liked) {
-        setLiked(false);
-        setLikesCount(prev => Math.max(0, prev - 1));
-      }
-      interact.mutate(dislike(String(params.id)));
     }
   };
 
@@ -145,22 +122,22 @@ const ArticleViewPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50">
         {/* Hero Section */}
         <div className="relative w-full h-80 md:h-96 lg:h-[500px]">
-        {article.imageUrl ? (
-            <Image 
-              src={article.imageUrl} 
-              alt={article.title} 
-              fill 
-              className="object-cover" 
+          {article.imageUrl ? (
+            <Image
+              src={article.imageUrl}
+              alt={article.title}
+              fill
+              className="object-cover"
               priority
             />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          
+
           {/* Back button */}
           <div className="absolute top-6 left-6">
-            <Link 
+            <Link
               href="/articles"
               className="inline-flex items-center px-3 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors"
             >
@@ -184,8 +161,8 @@ const ArticleViewPage: React.FC = () => {
                 </span>
               </div>
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
-              {article.title}
-            </h1>
+                {article.title}
+              </h1>
               <p className="text-lg text-white/90 max-w-3xl leading-relaxed">
                 {article.description}
               </p>
@@ -195,11 +172,11 @@ const ArticleViewPage: React.FC = () => {
 
         {/* Progress bar */}
         <div className="h-1 bg-gray-200">
-          <div 
-            className="h-1 bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-300" 
-            style={{ width: `${progress}%` }} 
+          <div
+            className="h-1 bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-300"
+            style={{ width: `${progress}%` }}
           />
-      </div>
+        </div>
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -211,7 +188,7 @@ const ArticleViewPage: React.FC = () => {
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center space-x-4">
-                      <UserAvatar 
+                      <UserAvatar
                         src={article.author?.profilePicture || undefined}
                         name={article.author ? `${article.author.firstName} ${article.author.lastName}` : 'Anonymous Author'}
                         size={48}
@@ -230,36 +207,34 @@ const ArticleViewPage: React.FC = () => {
                             <span>{article.viewsCount || 0} views</span>
                           </span>
                         </div>
-            </div>
-          </div>
+                      </div>
+                    </div>
 
                     {/* Interaction buttons */}
-          <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
                       <button
                         onClick={handleLike}
-                        className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          liked 
-                            ? 'bg-red-50 text-red-600 border border-red-200' 
+                        className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${liked
+                            ? 'bg-red-50 text-red-600 border border-red-200'
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {liked ? <HeartSolidIcon className="w-4 h-4" /> : <HeartIcon className="w-4 h-4" />}
                         <span>{likesCount}</span>
                       </button>
-                      
+
                       <button
                         onClick={handleBookmark}
-                        className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          bookmarked 
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                        className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${bookmarked
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {bookmarked ? <BookmarkSolidIcon className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}
                         <span>{bookmarksCount}</span>
                       </button>
 
-                      <button 
+                      <button
                         onClick={handleShare}
                         className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
                       >
@@ -267,19 +242,19 @@ const ArticleViewPage: React.FC = () => {
                         <span>Share</span>
                       </button>
                     </div>
-          </div>
-        </div>
+                  </div>
+                </div>
 
                 {/* Article Content */}
                 <div className="px-6 py-8">
-                  <div 
-                    ref={contentRef} 
+                  <div
+                    ref={contentRef}
                     className="prose prose-lg prose-gray max-w-none prose-headings:text-gray-900 prose-headings:font-bold prose-p:text-gray-700 prose-p:leading-relaxed prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline prose-strong:text-gray-900 prose-blockquote:border-indigo-200 prose-blockquote:bg-indigo-50 prose-blockquote:px-6 prose-blockquote:py-4 prose-blockquote:rounded-lg"
-                    dangerouslySetInnerHTML={{ __html: article.content }} 
+                    dangerouslySetInnerHTML={{ __html: article.content }}
                   />
                 </div>
-        </div>
-      </div>
+              </div>
+            </div>
 
             {/* Sidebar */}
             <div className="lg:col-span-1 space-y-6">
@@ -299,10 +274,10 @@ const ArticleViewPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Bookmarks</span>
                       <span className="font-semibold text-gray-900">{bookmarksCount}</span>
-          </div>
-        </div>
-            </CardContent>
-          </Card>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Category */}
               {article.category && (
@@ -323,7 +298,7 @@ const ArticleViewPage: React.FC = () => {
                   <CardContent className="p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Author</h3>
                     <div className="flex items-center space-x-3">
-                      <UserAvatar 
+                      <UserAvatar
                         src={article.author?.profilePicture || undefined}
                         name={`${article.author.firstName} ${article.author.lastName}`}
                         size={48}
@@ -335,8 +310,8 @@ const ArticleViewPage: React.FC = () => {
                         <div className="text-sm text-gray-500">{article.author.email}</div>
                       </div>
                     </div>
-            </CardContent>
-          </Card>
+                  </CardContent>
+                </Card>
               )}
 
             </div>
@@ -357,7 +332,7 @@ const ArticleViewPage: React.FC = () => {
             url={getShareUrl()}
           />
         )}
-    </div>
+      </div>
     </AuthGuard>
   );
 };

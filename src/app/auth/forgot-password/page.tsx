@@ -54,7 +54,6 @@ const ForgotPasswordPage: React.FC = () => {
         toast.error(result.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Forgot password error:', error);
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);

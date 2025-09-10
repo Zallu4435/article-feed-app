@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     await initializeDatabase();
-    // Prefer cookie, fallback to Authorization header
+
     const cookieToken = request.cookies.get('access_token')?.value;
     const auth = request.headers.get('authorization');
     const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ preferences });
 
   } catch (error) {
-    console.error("Get preferences error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
     await initializeDatabase();
     const body = await request.json();
     const { categoryId } = body;
-    // Prefer cookie, fallback to Authorization header
     const cookieToken = request.cookies.get('access_token')?.value;
     const auth = request.headers.get('authorization');
     const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
@@ -60,7 +58,6 @@ export async function POST(request: NextRequest) {
     const preferenceRepository = db.getRepository(UserPreference);
     const categoryRepository = db.getRepository(Category);
 
-    // Resolve category: allow UUID id or name string (e.g., "business")
     let resolvedCategoryId: string | null = null;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (uuidRegex.test(String(categoryId))) {
@@ -73,7 +70,6 @@ export async function POST(request: NextRequest) {
       resolvedCategoryId = cat.id;
     }
 
-    // Check if preference already exists
     const existingPreference = await preferenceRepository.findOne({ where: { userId, categoryId: resolvedCategoryId } });
 
     if (existingPreference) {
@@ -83,7 +79,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create preference
     const preference = preferenceRepository.create({ userId, categoryId: resolvedCategoryId });
 
     await preferenceRepository.save(preference);
@@ -94,7 +89,6 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error("Add preference error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -107,7 +101,7 @@ export async function DELETE(request: NextRequest) {
     await initializeDatabase();
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get("categoryId");
-    // Prefer cookie, fallback to Authorization header
+
     const cookieToken = request.cookies.get('access_token')?.value;
     const auth = request.headers.get('authorization');
     const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
@@ -127,7 +121,6 @@ export async function DELETE(request: NextRequest) {
     const preferenceRepository = db.getRepository(UserPreference);
     const categoryRepository = db.getRepository(Category);
 
-    // Resolve category: allow UUID id or name string
     let resolvedCategoryId: string | null = null;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (uuidRegex.test(String(categoryId))) {
@@ -140,7 +133,6 @@ export async function DELETE(request: NextRequest) {
       resolvedCategoryId = cat.id;
     }
 
-    // Find and delete preference
     const preference = await preferenceRepository.findOne({ where: { userId, categoryId: resolvedCategoryId } });
 
     if (!preference) {
@@ -157,7 +149,6 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error("Remove preference error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

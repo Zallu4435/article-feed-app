@@ -1,10 +1,5 @@
 import * as yup from 'yup';
 
-export type ChangePasswordFormData = {
-  currentPassword: string;
-  newPassword: string;
-};
-
 export const changePasswordSchema = yup
   .object({
     currentPassword: yup.string().required('Current password is required'),

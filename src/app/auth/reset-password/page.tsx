@@ -60,7 +60,6 @@ const ResetPasswordPage: React.FC = () => {
           setIsValid(false);
         }
       } catch (error) {
-        console.error('Access validation error:', error);
         setIsValid(false);
       } finally {
         setIsValidating(false);
@@ -98,7 +97,6 @@ const ResetPasswordPage: React.FC = () => {
         toast.error(result.message || 'Failed to reset password');
       }
     } catch (error) {
-      console.error('Reset password error:', error);
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);

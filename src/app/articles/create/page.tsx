@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
 import { createArticleSchema, type CreateArticleForm } from '@/schemas/articles/create';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -16,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { toast } from 'react-hot-toast';
 import { useCreateArticle } from '@/hooks/useArticles';
 import { AuthGuard } from '@/components/ui/AuthGuard';
+import { apiFetch } from '@/lib/api';
 
 const schema = createArticleSchema;
 type FormData = CreateArticleForm;
@@ -37,31 +37,22 @@ const CreateArticlePage: React.FC = () => {
     try {
       setSaving(true);
       let finalImageUrl = imageUrl;
-      // If ImageUpload provided a file via onFileSelected, upload here
-      // Note: ImageUpload sets preview and calls onFileSelected, not onUploaded
-      // We support both flows: if imageUrl already set, skip; otherwise try to upload selected file if available
       const fileInput = (document.querySelector('input[type="file"]') as HTMLInputElement | null);
       const maybeFile = fileInput?.files?.[0] || null;
       if (!finalImageUrl && maybeFile) {
         const fd = new FormData();
         fd.append('file', maybeFile);
-        const uploadRes = await fetch('/api/upload', {
+        const uploadData = await apiFetch<{ url: string }>('/api/upload', {
           method: 'POST',
           body: fd,
-          credentials: 'include',
         });
-        if (!uploadRes.ok) {
-          const errText = await uploadRes.text();
-          throw new Error(errText || 'Failed to upload image');
-        }
-        const uploadData = await uploadRes.json();
         finalImageUrl = uploadData.url as string;
         setImageUrl(finalImageUrl);
       }
 
       const payload = {
         ...data,
-        imageUrl: finalImageUrl,
+        imageUrl: finalImageUrl ?? undefined,
         tags: data.tags?.split(',').map(t => t.trim()).filter(Boolean) || [],
         status: isDraft ? 'draft' : 'published',
       };
@@ -69,7 +60,7 @@ const CreateArticlePage: React.FC = () => {
       await createArticle.mutateAsync(payload);
 
       toast.success(isDraft ? 'Draft saved' : 'Article published');
-      router.push('/dashboard');
+      router.push('/articles/list');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save');
     } finally {

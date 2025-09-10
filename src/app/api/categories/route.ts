@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDatabase, initializeDatabase } from "@/lib/database";
-// Defer entity import to avoid ESM circular init at build
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ categories });
 
   } catch (error) {
-    console.error("Get categories error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -31,7 +30,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, description } = body;
 
-    // Validation
     if (!name) {
       return NextResponse.json(
         { error: "Category name is required" },
@@ -42,7 +40,6 @@ export async function POST(request: NextRequest) {
     const { Category } = await import("@/entities/Category");
     const categoryRepository = getDatabase().getRepository(Category);
 
-    // Check if category already exists
     const existingCategory = await categoryRepository.findOne({
       where: { name }
     });
@@ -54,7 +51,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create category
     const category = categoryRepository.create({
       name,
       description
@@ -68,7 +64,6 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error("Create category error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

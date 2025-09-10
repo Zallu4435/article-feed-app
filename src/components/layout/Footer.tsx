@@ -105,10 +105,10 @@ const Footer: React.FC = () => {
               </h3>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed mb-6 max-w-sm">
-              Discover, share, and engage with high-quality articles from writers around the world. 
+              Discover, share, and engage with high-quality articles from writers around the world.
               Join our community of readers and writers today.
             </p>
-            
+
             {/* Contact Info */}
             <div className="space-y-2 text-sm text-gray-600">
               <div className="flex items-center space-x-2">
@@ -147,8 +147,6 @@ const Footer: React.FC = () => {
             </div>
           ))}
         </div>
-
-        {/* Newsletter Signup removed */}
       </div>
 
       {/* Bottom Section */}

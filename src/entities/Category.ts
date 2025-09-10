@@ -25,7 +25,6 @@ export class Category {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  // Relationships are defined on owning sides (e.g., Article, UserPreference)
   @OneToMany('UserPreference', (preference: UserPreference) => preference.category)
   userPreferences!: UserPreference[];
 }

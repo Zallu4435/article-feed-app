@@ -13,7 +13,6 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, article, url }
   const [copied, setCopied] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Close modal when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
@@ -30,7 +29,6 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, article, url }
     };
   }, [isOpen, onClose]);
 
-  // Close modal on escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -47,19 +45,16 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, article, url }
     };
   }, [isOpen, onClose]);
 
-  // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
-      // Store the current scroll position
+
       const scrollY = window.scrollY;
       
-      // Apply styles to prevent scrolling
       document.body.style.position = 'fixed';
       document.body.style.top = `-${scrollY}px`;
       document.body.style.width = '100%';
       
       return () => {
-        // Restore scrolling
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.width = '';
@@ -75,8 +70,6 @@ const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, article, url }
       toast.success('Link copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy: ', err);
-      // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = url;
       document.body.appendChild(textArea);

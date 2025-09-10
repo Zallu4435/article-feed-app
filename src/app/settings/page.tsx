@@ -8,7 +8,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useChangePassword } from '@/hooks/useSecurity';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { changePasswordSchema, type ChangePasswordFormData } from '@/schemas/auth/change-password';
+import { changePasswordSchema } from '@/schemas/auth/change-password';
+import type { InferType } from 'yup';
+
+type ChangePasswordFormData = InferType<typeof changePasswordSchema>;
+
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { usePreferences, useAddPreference, useRemovePreference, useProfile, useDeleteAccount, useCategories } from '@/hooks/useUser';
 import { AuthGuard } from '@/components/ui/AuthGuard';
@@ -16,20 +20,17 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { WarningDialog } from '@/components/ui/WarningDialog';
 
-// Categories are loaded dynamically via API
 
 const SettingsPage: React.FC = () => {
   const { theme } = useTheme();
   const [tab, setTab] = useState<'preferences' | 'security' | 'account'>('preferences');
 
-  // Load current preferences from profile to prefill selection
   const prof = useProfile();
   const prefs = usePreferences();
   const cats = useCategories();
   const addPref = useAddPreference();
   const remPref = useRemovePreference();
 
-  // Preferences state (mock)
   const [preferred, setPreferred] = useState<string[]>([]);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -42,7 +43,6 @@ const SettingsPage: React.FC = () => {
     }
   }, [prof.data]);
 
-  // Security form (react-hook-form + yup)
   const {
     register: registerSecurity,
     handleSubmit: handleSubmitSecurity,
@@ -75,7 +75,6 @@ const SettingsPage: React.FC = () => {
     try {
       await delAccount.mutateAsync();
       toast.success('Your account has been deleted');
-      // Redirect to login/home
       window.location.href = '/auth/login';
     } catch (e: any) {
       toast.error(e?.message || 'Failed to delete account');
@@ -84,7 +83,6 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Preferences helpers
   const selectAllCategories = () => setPreferred((cats.data?.categories || []).map((c: any) => c.id));
   const clearAllCategories = () => setPreferred([]);
   const savePreferences = async () => {
@@ -99,7 +97,6 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // Password strength (simple client-side heuristic)
   const strength = (() => {
     let s = 0;
     const pwd = watchSecurity ? (watchSecurity('newPassword') || '') : '';

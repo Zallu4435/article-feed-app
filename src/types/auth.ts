@@ -18,7 +18,4 @@ export interface RegisterData {
 }
 
 
-
-
-// Import User type from entities
 import type { User } from '@/entities/User';

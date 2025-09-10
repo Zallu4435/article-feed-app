@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import SearchResults from '@/components/ui/SearchResults';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import {
@@ -34,7 +33,6 @@ const Header: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // Navigate to search results page
       window.location.href = `/articles/list?search=${encodeURIComponent(searchQuery.trim())}`;
     }
   };
@@ -59,7 +57,6 @@ const Header: React.FC = () => {
     setIsUserMenuOpen(false);
   };
 
-  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
@@ -68,7 +65,6 @@ const Header: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {

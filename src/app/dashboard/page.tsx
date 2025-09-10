@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useArticles } from '@/hooks/useArticles';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
@@ -12,68 +11,45 @@ import {
   PlusIcon, 
   EyeIcon, 
   HeartIcon, 
-  ChatBubbleLeftIcon,
-  ShareIcon,
   BookmarkIcon,
-  FireIcon,
   ArrowTrendingUpIcon,
-  UsersIcon,
   DocumentTextIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useInteract, like, dislike, bookmark, unbookmark } from '@/hooks/useInteractions';
+import { apiFetch } from '@/lib/api';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
 const DashboardPage: React.FC = () => {
-  const { user, isAuthenticated } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const { data, isLoading } = useArticles({ page: 1, limit: 9, categoryId: selectedCategory === 'all' ? undefined : selectedCategory, excludeBlocked: true });
-  const [articles, setArticles] = useState<any[]>([]);
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([{ id: 'all', name: 'All' }]);
-  const totalArticles = Number(data?.pagination?.total || 0);
-  const statsQuery = useQuery({
-    queryKey: ['dashboard-stats'],
+  
+  const dashboardQuery = useQuery({
+    queryKey: ['dashboard-data'],
     queryFn: async () => {
-      const res = await fetch('/api/dashboard-stats');
-      if (!res.ok) throw new Error('Failed to load stats');
-      const json = await res.json();
-      return json.stats as { articlesRead: number; likesGiven: number; bookmarks: number; readingStreakDays: number };
+      const json = await apiFetch<{
+        articles: any[];
+        preferences: Array<{ id: string; categoryId: string; categoryName: string; createdAt: string }>;
+        allCategories: Array<{ id: string; name: string }>;
+        hasPreferences: boolean;
+        message?: string;
+        stats: { articlesRead: number; likesGiven: number; bookmarks: number; readingStreakDays: number };
+      }>('/api/dashboard');
+      return json;
     },
   });
-  const showLoadMore = totalArticles > articles.length;
 
-  useEffect(() => {
-    // Initialize category from query string, if present
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const fromQuery = params.get('categoryId');
-      if (fromQuery) setSelectedCategory(fromQuery);
-    }
-  }, []);
+  const articles = dashboardQuery.data?.articles || [];
+  const preferences = dashboardQuery.data?.preferences || [];
+  const allCategories = dashboardQuery.data?.allCategories || [];
+  const hasPreferences = dashboardQuery.data?.hasPreferences || false;
+  const stats = dashboardQuery.data?.stats;
+  const isLoading = dashboardQuery.isLoading;
 
-  useEffect(() => {
-    if (data?.articles) setArticles(data.articles as any[]);
-  }, [data]);
-
-  useEffect(() => {
-    // Load categories from API
-    fetch('/api/categories')
-      .then(r => r.json())
-      .then(({ categories }) => {
-        if (Array.isArray(categories)) {
-          setCategories([{ id: 'all', name: 'All' }, ...categories.map((c: any) => ({ id: c.id, name: c.name }))]);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // statsQuery handles loading and refetching automatically
-
-  const filteredArticles = articles;
 
   return (
     <AuthGuard>
@@ -89,10 +65,10 @@ const DashboardPage: React.FC = () => {
             <CardContent className="px-6 pb-6">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
-                  <StatTile label="Articles Read" value={statsQuery.data?.articlesRead ?? '—'} color="blue" icon={<DocumentTextIcon className="h-5 w-5" />} />
-                  <StatTile label="Likes Given" value={statsQuery.data?.likesGiven ?? '—'} color="green" icon={<HeartIcon className="h-5 w-5" />} />
-                  <StatTile label="Bookmarks" value={statsQuery.data?.bookmarks ?? '—'} color="purple" icon={<BookmarkIcon className="h-5 w-5" />} />
-                  <StatTile label="Reading Streak" value={(statsQuery.data ? `${statsQuery.data.readingStreakDays} day${(statsQuery.data.readingStreakDays||0)===1?'':'s'}` : '—')} color="orange" icon={<ArrowTrendingUpIcon className="h-5 w-5" />} />
+                  <StatTile label="Articles Read" value={stats?.articlesRead ?? '—'} color="blue" icon={<DocumentTextIcon className="h-5 w-5" />} />
+                  <StatTile label="Likes Given" value={stats?.likesGiven ?? '—'} color="green" icon={<HeartIcon className="h-5 w-5" />} />
+                  <StatTile label="Bookmarks" value={stats?.bookmarks ?? '—'} color="purple" icon={<BookmarkIcon className="h-5 w-5" />} />
+                  <StatTile label="Reading Streak" value={(stats ? `${stats.readingStreakDays} day${(stats.readingStreakDays||0)===1?'':'s'}` : '—')} color="orange" icon={<ArrowTrendingUpIcon className="h-5 w-5" />} />
                 </div>
                 <div className="flex items-center gap-2 w-full mt-4">
                   <Link href="/articles/create">
@@ -107,11 +83,16 @@ const DashboardPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Category Filters */}
+        {/* User Preferences Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Categories</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Your Preferences</h2>
             <div className="flex items-center space-x-2">
+              <Link href="/settings">
+                <Button variant="outline" size="sm" leftIcon={<Cog6ToothIcon className="h-4 w-4" />}>
+                  Manage Preferences
+                </Button>
+              </Link>
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
@@ -131,21 +112,38 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                {category.name}
-              </button>
-            ))}
-          </div>
+          {hasPreferences ? (
+            <div className="flex flex-wrap gap-2">
+              {preferences.map((preference) => (
+                <span
+                  key={preference.id}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                >
+                  {preference.categoryName}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Cog6ToothIcon className="h-5 w-5 text-yellow-400" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-800">
+                    <strong>No preferences selected.</strong> Please select your preferred categories to see personalized articles.
+                  </p>
+                </div>
+                <div className="ml-auto">
+                  <Link href="/settings">
+                    <Button size="sm" variant="outline">
+                      Select Preferences
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Articles Feed */}
@@ -157,36 +155,34 @@ const DashboardPage: React.FC = () => {
                 <Card key={i} loading><div /></Card>
               ))}
             </div>
-          ) : filteredArticles.length === 0 ? (
+          ) : !hasPreferences ? (
             <EmptyState
-              title="No articles yet"
-              description="Create your first article to get started."
-              actionLabel="Create Article"
-              onAction={() => (window.location.href = '/articles/create')}
+              title="Select your preferences to see articles"
+              description="Choose your preferred categories in settings to get personalized article recommendations."
+              actionLabel="Go to Settings"
+              onAction={() => (window.location.href = '/settings')}
+            />
+          ) : articles.length === 0 ? (
+            <EmptyState
+              title="No articles found"
+              description="No articles available in your preferred categories yet. Try adding more categories or check back later."
+              actionLabel="Manage Preferences"
+              onAction={() => (window.location.href = '/settings')}
             />
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredArticles.map((article) => (
+              {articles.map((article) => (
                 <ArticleCard key={article.id} article={article} />
               ))}
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredArticles.map((article) => (
+              {articles.map((article) => (
                 <ArticleListItem key={article.id} article={article} />
               ))}
             </div>
           )}
         </div>
-
-        {/* Load More */}
-        {showLoadMore && (
-          <div className="text-center">
-            <Button variant="outline" size="lg">
-              Load More Articles
-            </Button>
-          </div>
-        )}
       </div>
     </div>
     </AuthGuard>
@@ -197,6 +193,7 @@ const DashboardPage: React.FC = () => {
 const ArticleCard: React.FC<{
   article: any;
 }> = ({ article }) => {
+  const queryClient = useQueryClient();
   const interact = useInteract();
   const [liked, setLiked] = React.useState<boolean>(!!article.likedByCurrentUser);
   const [likesCount, setLikesCount] = React.useState<number>(Number(article.likesCount || 0));
@@ -248,11 +245,21 @@ const ArticleCard: React.FC<{
               if (liked) {
                 setLiked(false);
                 setLikesCount((c) => Math.max(0, c - 1));
-                interact.mutate(dislike(String(article.id)));
+                interact.mutate(dislike(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               } else {
                 setLiked(true);
                 setLikesCount((c) => c + 1);
-                interact.mutate(like(String(article.id)));
+                interact.mutate(like(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               }
             }}
             title="Like"
@@ -270,11 +277,21 @@ const ArticleCard: React.FC<{
               if (bookmarked) {
                 setBookmarked(false);
                 setBookmarksCount((c) => Math.max(0, c - 1));
-                interact.mutate(unbookmark(String(article.id)));
+                interact.mutate(unbookmark(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               } else {
                 setBookmarked(true);
                 setBookmarksCount((c) => c + 1);
-                interact.mutate(bookmark(String(article.id)));
+                interact.mutate(bookmark(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               }
             }}
             title="Bookmark"
@@ -293,10 +310,10 @@ const ArticleCard: React.FC<{
 );
 }
 
-// Article List Item Component
 const ArticleListItem: React.FC<{
   article: any;
 }> = ({ article }) => {
+  const queryClient = useQueryClient();
   const interact = useInteract();
   const [liked, setLiked] = React.useState<boolean>(!!article.likedByCurrentUser);
   const [likesCount, setLikesCount] = React.useState<number>(Number(article.likesCount || 0));
@@ -345,11 +362,21 @@ const ArticleListItem: React.FC<{
               if (liked) {
                 setLiked(false);
                 setLikesCount((c) => Math.max(0, c - 1));
-                interact.mutate(dislike(String(article.id)));
+                interact.mutate(dislike(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               } else {
                 setLiked(true);
                 setLikesCount((c) => c + 1);
-                interact.mutate(like(String(article.id)));
+                interact.mutate(like(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               }
             }}
             title="Like"
@@ -367,11 +394,21 @@ const ArticleListItem: React.FC<{
               if (bookmarked) {
                 setBookmarked(false);
                 setBookmarksCount((c) => Math.max(0, c - 1));
-                interact.mutate(unbookmark(String(article.id)));
+                interact.mutate(unbookmark(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               } else {
                 setBookmarked(true);
                 setBookmarksCount((c) => c + 1);
-                interact.mutate(bookmark(String(article.id)));
+                interact.mutate(bookmark(String(article.id)), {
+                  onSuccess: () => {
+                    // Refetch dashboard data to update stats
+                    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+                  }
+                });
               }
             }}
             title="Bookmark"

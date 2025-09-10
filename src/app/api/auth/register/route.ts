@@ -86,7 +86,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "OTP sent to email" }, { status: 200 });
 
   } catch (error) {
-    console.error("[register:initiate] Registration error:", (error as Error)?.message);
     return NextResponse.json(
       { error: { code: "server_error", message: "Internal server error" } },
       { status: 500 }

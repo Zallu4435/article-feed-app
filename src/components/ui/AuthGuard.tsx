@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import type { AuthGuardProps } from '@/types/components';
 import { 
   LockClosedIcon, 
   UserCircleIcon, 
@@ -10,21 +12,13 @@ import {
   SparklesIcon 
 } from '@heroicons/react/24/outline';
 
-interface AuthGuardProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
-
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children, fallback }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-600 text-sm">Verifying access...</p>
-        </div>
+        <LoadingSpinner size={32} text="Verifying access..." />
       </div>
     );
   }

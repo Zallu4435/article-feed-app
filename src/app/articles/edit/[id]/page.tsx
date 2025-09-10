@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { toast } from 'react-hot-toast';
 import { useArticle, useUpdateArticle } from '@/hooks/useArticles';
 import { AuthGuard } from '@/components/ui/AuthGuard';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { apiFetch } from '@/lib/api';
 
-// Options will be loaded from API via useCategories
 
 const EditArticlePage: React.FC = () => {
   const params = useParams<{ id: string }>();
@@ -34,7 +35,6 @@ const EditArticlePage: React.FC = () => {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Mock load
   useEffect(() => {
     if (!data?.article) return;
     const a = data.article as any;
@@ -78,16 +78,10 @@ const EditArticlePage: React.FC = () => {
       if (pendingFile) {
         const fd = new FormData();
         fd.append('file', pendingFile);
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: fd,
-          credentials: 'include',
-        });
-        if (!uploadRes.ok) {
-          const errText = await uploadRes.text();
-          throw new Error(errText || 'Failed to upload image');
-        }
-        const uploadData = await uploadRes.json();
+        const uploadData = await apiFetch<{ url: string }>(
+          '/api/upload',
+          { method: 'POST', body: fd }
+        );
         finalImageUrl = uploadData.url as string;
         setImageUrl(finalImageUrl);
       }
@@ -110,8 +104,8 @@ const EditArticlePage: React.FC = () => {
 
   if (!initial) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size={32} text="Loading article..." />
       </div>
     );
   }

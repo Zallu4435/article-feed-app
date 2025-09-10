@@ -6,16 +6,15 @@ import { Button } from '@/components/ui/Button';
 import type { ImageUploadProps } from '@/types/ui';
 import { cn } from '@/lib/utils';
 
-const ImageUpload: React.FC<ImageUploadProps> = ({ label = 'Cover Image', onUploaded, onFileSelected, initialUrl = null, onClear }) => {
-  const [uploading, setUploading] = useState(false);
+const ImageUpload: React.FC<ImageUploadProps> = ({ label = 'Cover Image', onFileSelected, initialUrl = null, onClear }) => {
   const [preview, setPreview] = useState<string | null>(initialUrl);
-  const [file, setFile] = useState<File | null>(null);
+  const [, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
-    // Client validation: type and size
+
     if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
       setError('Only PNG and JPG images are allowed');
       return;
@@ -29,7 +28,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ label = 'Cover Image', onUplo
     setFile(file);
     onFileSelected?.(file);
 
-    // Preview-only mode; do not call backend here
   }, [onFileSelected]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -58,7 +56,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ label = 'Cover Image', onUplo
       >
         <input {...getInputProps()} />
         {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="Preview" className="h-48 w-full rounded-md object-cover shadow-sm" />
         ) : (
           <div className="text-gray-600">
@@ -71,7 +68,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ label = 'Cover Image', onUplo
             <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
           </div>
         )}
-        {/* No uploading overlay; no immediate upload */}
       </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {preview && (

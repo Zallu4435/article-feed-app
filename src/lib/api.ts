@@ -9,7 +9,6 @@ export const apiFetch = async <T>(path: string, opts: ApiOptions = {}): Promise<
     });
   }
 
-  // Helper to actually make the fetch
   const doFetch = async () => {
     const isFormData = typeof FormData !== 'undefined' && opts.body instanceof FormData;
     const res = await fetch(url.toString(), {
@@ -20,7 +19,7 @@ export const apiFetch = async <T>(path: string, opts: ApiOptions = {}): Promise<
       },
       body: opts.body ? (isFormData ? opts.body : JSON.stringify(opts.body)) : undefined,
       cache: 'no-store',
-      credentials: 'include', // Send cookies!
+      credentials: 'include', 
     });
     const text = await res.text();
     let data: any = null;
@@ -30,14 +29,13 @@ export const apiFetch = async <T>(path: string, opts: ApiOptions = {}): Promise<
 
   let { res, data } = await doFetch();
 
-  if (res.status === 401) {
-    // Try to refresh the access token
-    const refreshRes = await fetch('/api/auth/refresh', {
+  if (res.status === 401 || res.status === 403) {
+    const refreshUrl = new URL('/api/auth/refresh', url.origin);
+    const refreshRes = await fetch(refreshUrl.toString(), {
       method: 'POST',
       credentials: 'include',
     });
     if (refreshRes.ok) {
-      // Retry the original request once
       ({ res, data } = await doFetch());
     }
   }

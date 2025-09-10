@@ -7,10 +7,11 @@ import { cn } from '@/lib/utils';
 import { CameraIcon, XMarkIcon, PencilIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import type { ProfilePictureUploadProps } from '@/types';
+import { apiFetch } from '@/lib/api';
 
-const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ 
-  currentImageUrl, 
-  onUploaded, 
+const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
+  currentImageUrl,
+  onUploaded,
   onRemove,
   size = 'md',
   showAsOverlay = false
@@ -29,7 +30,6 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     const file = acceptedFiles[0];
     if (!file) return;
 
-    // Client validation - only PNG and JPG
     if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
       setError('Only PNG and JPG images are supported');
       return;
@@ -43,31 +43,21 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     setUploading(true);
 
     try {
-      // Create preview
+
       const previewUrl = URL.createObjectURL(file);
       setPreview(previewUrl);
 
-      // Upload to server
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/users/profile/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
-      }
-
-      const data = await response.json();
+      const data = await apiFetch<{ url: string }>(
+        '/api/users/profile/upload',
+        { method: 'POST', body: formData }
+      );
       onUploaded(data.url);
       toast.success('Profile picture updated successfully!');
-      
+
     } catch (err: any) {
-      console.error('Upload error:', err);
       setError(err.message || 'Upload failed');
       setPreview(currentImageUrl || null);
       toast.error(err.message || 'Failed to upload profile picture');
@@ -85,27 +75,18 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
 
   const removeImage = async () => {
     if (!currentImageUrl) return;
-    
-    try {
-      // Update profile to remove picture
-      const response = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ profilePicture: null }),
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to remove profile picture');
-      }
+    try {
+
+      await apiFetch('/api/users/profile', {
+        method: 'PUT',
+        body: { profilePicture: null },
+      });
 
       setPreview(null);
       onRemove?.();
       toast.success('Profile picture removed successfully!');
     } catch (err: any) {
-      console.error('Remove error:', err);
       toast.error(err.message || 'Failed to remove profile picture');
     }
   };
@@ -155,19 +136,19 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
         className={cn(
           'relative rounded-full border-2 border-dashed transition-all cursor-pointer group',
           sizeClasses[size],
-          isDragActive 
-            ? 'border-indigo-500 bg-indigo-50' 
+          isDragActive
+            ? 'border-indigo-500 bg-indigo-50'
             : 'border-gray-300 hover:border-gray-400',
           uploading && 'opacity-50 cursor-not-allowed'
         )}
       >
         <input {...getInputProps()} disabled={uploading} />
-        
+
         {preview ? (
           <div className="relative w-full h-full rounded-full overflow-hidden">
-            <img 
-              src={preview} 
-              alt="Profile preview" 
+            <img
+              src={preview}
+              alt="Profile preview"
               className="w-full h-full object-cover"
             />
             {uploading && (
@@ -201,7 +182,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
         >
           {preview ? 'Change' : 'Upload'}
         </Button>
-        
+
         {preview && (
           <Button
             variant="outline"

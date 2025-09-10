@@ -1,4 +1,3 @@
-// Export all types from dedicated files
 export * from './api';
 export * from './article';
 export * from './category';

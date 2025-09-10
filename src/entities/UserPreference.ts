@@ -23,7 +23,6 @@ export class UserPreference {
   @CreateDateColumn()
   createdAt!: Date;
 
-  // Relationships
   @ManyToOne(() => User, (user) => user.preferences)
   @JoinColumn({ name: "userId" })
   user!: User;

@@ -30,7 +30,7 @@ export const createArticleSchema = yup.object({
   imageUrl: yup.string()
     .nullable()
     .test('is-image', 'Image must be a PNG or JPG', (value) => {
-      if (!value) return true; // optional
+      if (!value) return true;
       return /(\.png|\.jpg|\.jpeg)$/i.test(value);
     })
 }).required();

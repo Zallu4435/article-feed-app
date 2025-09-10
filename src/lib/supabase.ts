@@ -1,6 +1,3 @@
-// Supabase client configuration for future use
-// This file is prepared for when you want to add Supabase client-side features
-
 import type { SupabaseConfig } from '@/types';
 
 export const getSupabaseConfig = (): SupabaseConfig => {
@@ -19,7 +16,6 @@ export const getSupabaseConfig = (): SupabaseConfig => {
   };
 };
 
-// Helper function to validate Supabase connection string
 export const validateDatabaseUrl = (url: string): boolean => {
   try {
     const urlObj = new URL(url);
@@ -29,7 +25,6 @@ export const validateDatabaseUrl = (url: string): boolean => {
   }
 };
 
-// Database connection status checker
 export const getConnectionInfo = () => {
   const databaseUrl = process.env.DATABASE_URL;
   

@@ -106,7 +106,6 @@ const VerifyResetOtpPage: React.FC = () => {
         setValue('otp', ''); // Clear the input
       }
     } catch (error) {
-      console.error('OTP verification error:', error);
       setError('otp', {
         type: 'server',
         message: 'Something went wrong. Please try again.'
@@ -146,7 +145,6 @@ const VerifyResetOtpPage: React.FC = () => {
         toast.error(result.message || 'Failed to resend OTP');
       }
     } catch (error) {
-      console.error('Resend OTP error:', error);
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsResending(false);

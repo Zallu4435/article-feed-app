@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
     await AppDataSource.initialize();
     const userRepository = AppDataSource.getRepository(User);
 
-    // Find user by email
     const user = await userRepository.findOne({
       where: { email: email.toLowerCase() }
     });
@@ -29,7 +28,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user has completed OTP verification (OTP is cleared after verification)
     if (user.passwordResetOtp !== null) {
       return NextResponse.json(
         { message: 'OTP verification required' },

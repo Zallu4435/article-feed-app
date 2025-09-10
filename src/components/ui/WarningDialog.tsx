@@ -2,15 +2,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/Button';
-
-interface WarningDialogProps {
-  title?: string;
-  description?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
+import type { WarningDialogProps } from '@/types/components';
 
 const WarningDialog: React.FC<WarningDialogProps> = ({
   title = 'Are you sure?',

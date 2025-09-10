@@ -33,7 +33,6 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ src, name = 'User', size = 32 }
       role="img"
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={name} className="object-cover w-full h-full" />
       ) : (
         <span className="font-medium tracking-wide">{getInitials(name)}</span>
