@@ -15,9 +15,19 @@ export const initializeDatabase = async () => {
   }
 
   isInitializing = true;
+  const rawEntities = AppDataSource.options.entities;
+  const entitiesArray = Array.isArray(rawEntities) ? rawEntities : [];
+  const configuredEntities = entitiesArray.map((e: any) =>
+    typeof e === "function" ? e.name : e
+  );
+  console.log("[db] env:", { nodeEnv: process.env.NODE_ENV, dbSync: process.env.DB_SYNC });
+  console.log("[db] configured entities:", configuredEntities);
+
   initializationPromise = AppDataSource.initialize()
     .then(() => {
+      const loaded = AppDataSource.entityMetadatas.map((m) => m.name);
       console.log("✅ Database connection established successfully");
+      console.log("[db] loaded entity metadata:", loaded);
       return AppDataSource;
     })
     .catch((error) => {
