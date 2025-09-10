@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany
 } from "typeorm";
+import { UserPreference } from "./UserPreference";
 
 @Entity("categories")
 export class Category {
@@ -24,6 +25,6 @@ export class Category {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany(() => require("@/entities/UserPreference").UserPreference, (preference: any) => preference.category)
-  userPreferences!: any[];
+  @OneToMany(() => UserPreference, (preference) => preference.category)
+  userPreferences!: UserPreference[];
 }

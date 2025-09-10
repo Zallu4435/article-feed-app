@@ -6,6 +6,8 @@ import {
   ManyToOne,
   JoinColumn
 } from "typeorm";
+import { User } from "./User";
+import { Category } from "./Category";
 
 @Entity("user_preferences")
 export class UserPreference {
@@ -21,11 +23,11 @@ export class UserPreference {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @ManyToOne(() => require("@/entities/User").User, (user: any) => user.preferences)
+  @ManyToOne(() => User, (user) => user.preferences)
   @JoinColumn({ name: "userId" })
-  user!: any;
+  user!: User;
 
-  @ManyToOne(() => require("@/entities/Category").Category, (category: any) => category.userPreferences)
+  @ManyToOne(() => Category, (category) => category.userPreferences)
   @JoinColumn({ name: "categoryId" })
-  category!: any;
+  category!: Category;
 }
