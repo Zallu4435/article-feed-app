@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const { articleId } = body as { articleId?: string };
     if (!articleId) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
-    const { Article } = await import('@/entities/Article');
+    const { Article } = await import('../../../entities/Article');
     const repo = getDatabase().getRepository(Article);
     const art = await repo.findOne({ where: { id: articleId } });
     if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
