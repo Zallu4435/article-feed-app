@@ -1,10 +1,10 @@
 import { DataSource } from "typeorm";
-import { User } from "../entities/User";
-import { Article } from "../entities/Article";
-import { Category } from "../entities/Category";
-import { UserPreference } from "../entities/UserPreference";
-import { RefreshToken } from "../entities/RefreshToken";
-import { EmailVerification } from "../entities/EmailVerification";
+import { User } from "@/entities/User";
+import { Article } from "@/entities/Article";
+import { Category } from "@/entities/Category";
+import { UserPreference } from "@/entities/UserPreference";
+import { RefreshToken } from "@/entities/RefreshToken";
+import { EmailVerification } from "@/entities/EmailVerification";
 
 export const AppDataSource = new DataSource({
   type: "postgres",

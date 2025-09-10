@@ -63,12 +63,11 @@ export class Article {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => require("./User").User)
   @JoinColumn({ name: "authorId" })
   author!: User;
 
-  @ManyToOne(() => Category)
+  @ManyToOne(() => require("./Category").Category)
   @JoinColumn({ name: "categoryId" })
   category!: Category;
-
 }
