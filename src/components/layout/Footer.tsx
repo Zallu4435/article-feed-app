@@ -24,28 +24,28 @@ const Footer: React.FC = () => {
     company: {
       title: 'Company',
       links: [
-        { name: 'About Us', href: '/about' },
-        { name: 'Careers', href: '/careers' },
-        { name: 'Blog', href: '/blog' },
-        { name: 'Press', href: '/press' },
+        { name: 'About Us', href: '#' },
+        { name: 'Careers', href: '#' },
+        { name: 'Blog', href: '#' },
+        { name: 'Press', href: '#' },
       ],
     },
     support: {
       title: 'Support',
       links: [
-        { name: 'Help Center', href: '/help' },
-        { name: 'Contact Us', href: '/contact' },
-        { name: 'Status', href: '/status' },
-        { name: 'Documentation', href: '/docs' },
+        { name: 'Help Center', href: '#' },
+        { name: 'Contact Us', href: '#' },
+        { name: 'Status', href: '#' },
+        { name: 'Documentation', href: '#' },
       ],
     },
     legal: {
       title: 'Legal',
       links: [
-        { name: 'Privacy Policy', href: '/privacy' },
-        { name: 'Terms of Service', href: '/terms' },
-        { name: 'Cookie Policy', href: '/cookies' },
-        { name: 'GDPR', href: '/gdpr' },
+        { name: 'Privacy Policy', href: '#' },
+        { name: 'Terms of Service', href: '#' },
+        { name: 'Cookie Policy', href: '#' },
+        { name: 'GDPR', href: '#' },
       ],
     },
   };
