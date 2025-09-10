@@ -7,8 +7,6 @@ import {
   ManyToOne,
   JoinColumn
 } from "typeorm";
-import { User } from "./User";
-import { Category } from "./Category";
 
 @Entity("articles")
 export class Article {
@@ -63,11 +61,11 @@ export class Article {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @ManyToOne(() => require("./User").User)
+  @ManyToOne(() => require("@/entities/User").User)
   @JoinColumn({ name: "authorId" })
-  author!: User;
+  author!: any;
 
-  @ManyToOne(() => require("./Category").Category)
+  @ManyToOne(() => require("@/entities/Category").Category)
   @JoinColumn({ name: "categoryId" })
-  category!: Category;
+  category!: any;
 }

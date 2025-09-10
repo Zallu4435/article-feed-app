@@ -54,7 +54,7 @@ export class User {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany(() => require("./UserPreference").UserPreference, (preference: any) => preference.user)
+  @OneToMany(() => require("@/entities/UserPreference").UserPreference, (preference: any) => preference.user)
   preferences!: any[];
 
   @BeforeInsert()

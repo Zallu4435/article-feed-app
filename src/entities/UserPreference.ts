@@ -21,11 +21,11 @@ export class UserPreference {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @ManyToOne(() => require("./User").User, (user: any) => user.preferences)
+  @ManyToOne(() => require("@/entities/User").User, (user: any) => user.preferences)
   @JoinColumn({ name: "userId" })
   user!: any;
 
-  @ManyToOne(() => require("./Category").Category, (category: any) => category.userPreferences)
+  @ManyToOne(() => require("@/entities/Category").Category, (category: any) => category.userPreferences)
   @JoinColumn({ name: "categoryId" })
   category!: any;
 }

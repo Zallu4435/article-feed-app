@@ -24,6 +24,6 @@ export class Category {
   @UpdateDateColumn()
   updatedAt!: Date;
 
-  @OneToMany(() => require("./UserPreference").UserPreference, (preference: any) => preference.category)
+  @OneToMany(() => require("@/entities/UserPreference").UserPreference, (preference: any) => preference.category)
   userPreferences!: any[];
 }
