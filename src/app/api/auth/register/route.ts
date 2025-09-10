@@ -4,7 +4,6 @@ import { User } from "@/entities/User";
 import { RefreshToken } from "@/entities/RefreshToken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 import { EmailVerification } from "@/entities/EmailVerification";
 import { generateOtp, sendOtpEmail } from "@/lib/email";
 
@@ -14,9 +13,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     const body = await request.json();
     const { firstName, lastName, phone, email, dateOfBirth, password } = body ?? {};
-    console.log("[register:initiate] Payload received", { email, phone, hasPassword: !!password });
 
-    // Validation
     const fieldErrors: Record<string, string> = {};
     if (!firstName) fieldErrors.firstName = "First name is required";
     if (!lastName) fieldErrors.lastName = "Last name is required";
@@ -44,7 +41,6 @@ export async function POST(request: NextRequest) {
     const refreshTokenRepository = db.getRepository(RefreshToken);
     const emailVerificationRepo = db.getRepository(EmailVerification);
 
-    // Check if user already exists
     const existingUser = await userRepository.findOne({ where: [{ email }, { phone }] });
 
     if (existingUser) {
@@ -56,11 +52,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate OTP and send email
     const otp = generateOtp(6);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
-    // Upsert verification record
     const existingVerification = await emailVerificationRepo.findOne({ where: { email } });
     if (existingVerification) {
       existingVerification.otp = otp;
@@ -74,7 +68,6 @@ export async function POST(request: NextRequest) {
 
     try {
       await sendOtpEmail(email, otp);
-      console.log("[register:initiate] OTP sent to", email);
     } catch (e) {
       console.error("[register:initiate] Failed to send OTP email:", (e as Error)?.message);
       return NextResponse.json(

@@ -138,42 +138,6 @@ postgresql://postgres:mypassword123@db.abcdefghijklmnop.supabase.co:5432/postgre
 
 ## 🧪 Testing Your Migration
 
-### 1. Connection Test
-```bash
-curl http://localhost:3000/api/test-db
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Database connection is healthy",
-  "data": {
-    "status": "healthy",
-    "timestamp": "2024-01-01T00:00:00.000Z"
-  }
-}
-```
-
-### 2. Detailed Test
-```bash
-curl -X POST http://localhost:3000/api/test-db \
-  -H "Content-Type: application/json" \
-  -d '{"action": "ping"}'
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "action": "ping",
-  "data": {
-    "currentTime": "2024-01-01 00:00:00",
-    "dbVersion": "PostgreSQL 15.1 on x86_64-pc-linux-gnu...",
-    "connectionStatus": "active"
-  }
-}
-```
 
 ## 🔍 Troubleshooting
 

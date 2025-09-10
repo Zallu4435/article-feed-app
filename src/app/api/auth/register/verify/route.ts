@@ -11,10 +11,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
+    
     const db = getDatabase();
     const body = await request.json();
     const { firstName, lastName, phone, email, dateOfBirth, password, otp } = body ?? {};
-    console.log("[register:verify] Payload received", { email, phone, hasOtp: !!otp });
 
     const fieldErrors: Record<string, string> = {};
     if (!firstName) fieldErrors.firstName = "First name is required";
@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
     const refreshTokenRepository = db.getRepository(RefreshToken);
     const emailVerificationRepo = db.getRepository(EmailVerification);
 
-    // Check OTP record
     const verification = await emailVerificationRepo.findOne({ where: { email } });
     if (!verification) {
       console.warn("[register:verify] No OTP record for", email);
@@ -65,10 +64,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // OTP valid; delete verification
     await emailVerificationRepo.delete({ id: verification.id });
 
-    // Create user
     const existingUser = await userRepository.findOne({ where: [{ email }, { phone }] });
     if (existingUser) {
       const conflictField = existingUser.email === email ? "email" : "phone";

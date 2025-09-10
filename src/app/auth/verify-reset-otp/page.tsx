@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -8,25 +8,23 @@ import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { 
   ArrowLeftIcon,
   ShieldCheckIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import type { VerifyOtpFormData } from '@/types/auth';
 
-interface VerifyOtpFormData {
-  otp: string;
-}
-
-const VerifyResetOtpPage: React.FC = () => {
+const VerifyResetOtpContent: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
-  const [resendCooldown, setResendCooldown] = useState(60); // 1 minute cooldown for resend
+  const [timeLeft, setTimeLeft] = useState(600); 
+  const [resendCooldown, setResendCooldown] = useState(60); 
 
   const email = searchParams.get('email');
 
@@ -42,7 +40,6 @@ const VerifyResetOtpPage: React.FC = () => {
 
   const otp = watch('otp');
 
-  // Countdown timer for OTP expiry
   useEffect(() => {
     if (timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -50,7 +47,6 @@ const VerifyResetOtpPage: React.FC = () => {
     }
   }, [timeLeft]);
 
-  // Countdown timer for resend cooldown
   useEffect(() => {
     if (resendCooldown > 0) {
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
@@ -58,7 +54,6 @@ const VerifyResetOtpPage: React.FC = () => {
     }
   }, [resendCooldown]);
 
-  // Auto-focus on OTP input
   useEffect(() => {
     const otpInput = document.getElementById('otp');
     if (otpInput) {
@@ -72,7 +67,6 @@ const VerifyResetOtpPage: React.FC = () => {
       return;
     }
 
-    // Clear any previous errors
     clearErrors('otp');
 
     setIsLoading(true);
@@ -93,17 +87,15 @@ const VerifyResetOtpPage: React.FC = () => {
       if (response.ok) {
         setOtpVerified(true);
         toast.success('OTP verified successfully!');
-        // Redirect to reset password page with email
         setTimeout(() => {
           router.push(`/auth/reset-password?email=${encodeURIComponent(email)}&verified=true`);
         }, 1500);
       } else {
-        // Set form error instead of toast
         setError('otp', {
           type: 'server',
           message: result.message || 'Invalid or expired OTP'
         });
-        setValue('otp', ''); // Clear the input
+        setValue('otp', ''); 
       }
     } catch (error) {
       setError('otp', {
@@ -121,9 +113,8 @@ const VerifyResetOtpPage: React.FC = () => {
       return;
     }
 
-    // Clear any form errors when resending
     clearErrors('otp');
-    setValue('otp', ''); // Clear the input
+    setValue('otp', ''); 
 
     setIsResending(true);
     try {
@@ -138,8 +129,8 @@ const VerifyResetOtpPage: React.FC = () => {
       const result = await response.json();
 
       if (response.ok) {
-        setTimeLeft(600); // Reset OTP timer
-        setResendCooldown(60); // Reset resend cooldown
+        setTimeLeft(600); 
+        setResendCooldown(60); 
         toast.success('New OTP sent!');
       } else {
         toast.error(result.message || 'Failed to resend OTP');
@@ -301,6 +292,20 @@ const VerifyResetOtpPage: React.FC = () => {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+const LoadingFallback: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <LoadingSpinner size={40} text="Loading..." />
+  </div>
+);
+
+const VerifyResetOtpPage: React.FC = () => {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <VerifyResetOtpContent />
+    </Suspense>
   );
 };
 

@@ -17,5 +17,14 @@ export interface RegisterData {
   password: string;
 }
 
+export interface VerifyOtpFormData {
+  otp: string;
+}
+
+export interface ResetPasswordFormData {
+  password: string;
+  confirmPassword: string;
+}
+
 
 import type { User } from '@/entities/User';

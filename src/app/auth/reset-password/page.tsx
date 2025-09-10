@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { 
   ArrowLeftIcon,
   LockClosedIcon,
@@ -16,13 +17,9 @@ import {
   EyeIcon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
+import type { ResetPasswordFormData } from '@/types/auth';
 
-interface ResetPasswordFormData {
-  password: string;
-  confirmPassword: string;
-}
-
-const ResetPasswordPage: React.FC = () => {
+const ResetPasswordContent: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +49,6 @@ const ResetPasswordPage: React.FC = () => {
       }
 
       try {
-        // Check if user has a valid OTP verification
         const response = await fetch(`/api/auth/validate-reset-access?email=${encodeURIComponent(email)}`);
         if (response.ok) {
           setIsValid(true);
@@ -106,10 +102,7 @@ const ResetPasswordPage: React.FC = () => {
   if (isValidating) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-600 text-sm">Validating access...</p>
-        </div>
+        <LoadingSpinner size={40} text="Validating access..." />
       </div>
     );
   }
@@ -299,6 +292,20 @@ const ResetPasswordPage: React.FC = () => {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+const LoadingFallback: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <LoadingSpinner size={40} text="Loading..." />
+  </div>
+);
+
+const ResetPasswordPage: React.FC = () => {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 };
 
