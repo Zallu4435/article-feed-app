@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AppDataSource } from '@/lib/datasource';
+import { initializeDatabase, getDatabase } from '@/lib/database';
 import { User } from '@/entities/User';
 
 export async function GET(request: NextRequest) {
@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await AppDataSource.initialize();
-    const userRepository = AppDataSource.getRepository(User);
+    await initializeDatabase();
+    const dataSource = getDatabase();
+    const userRepository = dataSource.getRepository(User);
 
     const user = await userRepository.findOne({
       where: { email: email.toLowerCase() }
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (user.passwordResetOtp !== null) {
+    if (user.passwordResetOtp && user.passwordResetOtp.trim() !== '') {
       return NextResponse.json(
         { message: 'OTP verification required' },
         { status: 400 }
@@ -47,8 +48,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    if (AppDataSource.isInitialized) {
-      await AppDataSource.destroy();
-    }
+    // Do not destroy the global DataSource; connection pooling is managed in lib/database.
   }
 }

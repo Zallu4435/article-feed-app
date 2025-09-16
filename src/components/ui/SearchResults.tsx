@@ -6,17 +6,21 @@ import { useRouter } from 'next/navigation';
 import { MagnifyingGlassIcon, DocumentTextIcon, UserIcon, TagIcon } from '@heroicons/react/24/outline';
 import { useArticles } from '@/hooks/useArticles';
 import type { SearchResultsProps } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, onSelect }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   
-  const { data: searchData, isLoading } = useArticles({ 
+  const { isAuthenticated } = useAuth();
+
+  const { data: searchData, isLoading, isError } = useArticles({ 
     page: 1, 
     limit: 8, 
     search: query.trim() || undefined,
-    excludeBlocked: true 
+    excludeBlocked: true,
+    enabled: isAuthenticated && !!query.trim()
   });
 
   const articles = searchData?.articles || [];
@@ -76,10 +80,24 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
       <div ref={resultsRef} className="max-h-96 overflow-y-auto">
-        {isLoading ? (
+        {!isAuthenticated ? (
+          <div className="p-4 text-center text-gray-500">
+            <p className="text-sm">Log in to search your articles.</p>
+            <button
+              className="mt-2 text-indigo-600 text-sm hover:underline"
+              onClick={() => router.push('/auth/login')}
+            >
+              Go to login
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="p-4 text-center text-gray-500">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
             Searching...
+          </div>
+        ) : isError ? (
+          <div className="p-4 text-center text-gray-500">
+            <p className="text-sm">Unable to fetch results. Please try again.</p>
           </div>
         ) : articles.length > 0 ? (
           <>

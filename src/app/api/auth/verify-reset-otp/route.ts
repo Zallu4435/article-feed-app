@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AppDataSource } from '@/lib/datasource';
+import { initializeDatabase, getDatabase } from '@/lib/database';
 import { User } from '@/entities/User';
 import { MoreThan } from 'typeorm';
 
@@ -21,8 +21,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await AppDataSource.initialize();
-    const userRepository = AppDataSource.getRepository(User);
+    await initializeDatabase();
+    const dataSource = getDatabase();
+    const userRepository = dataSource.getRepository(User);
 
     const user = await userRepository.findOne({
       where: {
@@ -39,9 +40,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    user.passwordResetOtp = undefined;
-    user.passwordResetOtpExpiry = undefined;
-    await userRepository.save(user);
+    await userRepository.update(user.id, {
+      passwordResetOtp: null,
+      passwordResetOtpExpiry: null,
+    });
 
     return NextResponse.json(
       { message: 'OTP verified successfully' },
@@ -55,8 +57,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    if (AppDataSource.isInitialized) {
-      await AppDataSource.destroy();
-    }
+    // Do not destroy the global DataSource; connection pooling is managed in lib/database.
   }
 }

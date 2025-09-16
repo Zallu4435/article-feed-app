@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         "article.id",
         "article.title", 
         "article.description",
+        "article.imageUrl",
         "article.createdAt",
         "article.isBlocked",
         "category.id",
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
       id: a.id,
       title: a.title,
       description: a.description,
+      imageUrl: a.imageUrl ?? null,
       createdAt: a.createdAt,
       category: a.category
         ? { id: a.category.id, name: a.category.name }

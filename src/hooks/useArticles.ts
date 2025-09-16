@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import type { ArticlePayload } from '@/types';
 
-export const useArticles = (params: { page?: number; limit?: number; categoryId?: string; search?: string; excludeBlocked?: boolean } = {}) => {
+export const useArticles = (params: { page?: number; limit?: number; categoryId?: string; search?: string; excludeBlocked?: boolean; enabled?: boolean } = {}) => {
+  const { enabled, ...queryParams } = params;
   return useQuery({
-    queryKey: ['articles', params],
-    queryFn: () => apiFetch<{ articles: any[]; pagination: any }>(`/api/articles`, { query: params }),
+    queryKey: ['articles', queryParams],
+    queryFn: () => apiFetch<{ articles: any[]; pagination: any }>(`/api/articles`, { query: queryParams }),
+    enabled: enabled !== undefined ? enabled : true,
   });
 };
 

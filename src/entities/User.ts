@@ -41,10 +41,10 @@ export class User {
   resetTokenExpiry?: Date;
 
   @Column({ type: "varchar", length: 6, nullable: true })
-  passwordResetOtp?: string;
+  passwordResetOtp?: string | null;
 
   @Column({ type: "timestamp", nullable: true })
-  passwordResetOtpExpiry?: Date;
+  passwordResetOtpExpiry?: Date | null;
 
   @Column({ type: "varchar", length: 500, nullable: true })
   profilePicture?: string;
