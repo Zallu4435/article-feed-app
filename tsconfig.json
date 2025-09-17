@@ -20,6 +20,8 @@
         "name": "next"
       }
     ],
+    "types": ["node", "estree"],
+    "typeRoots": ["./node_modules/@types"],
     "paths": {
       "@/*": ["./src/*"],
       "@/entities/*": ["./src/entities/*"],
