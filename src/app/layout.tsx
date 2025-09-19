@@ -11,8 +11,45 @@ import OnlineBar from "@/components/layout/OnlineBar";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
-  title: "ArticleFeeds - Discover Amazing Content",
-  description: "A modern platform for discovering and sharing articles across various categories",
+  title: {
+    default: "ArticleFeeds - Discover Amazing Content",
+    template: "%s | ArticleFeeds",
+  },
+  description:
+    "A modern platform for discovering and sharing articles across various categories",
+  metadataBase:
+    typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL
+      ? new URL(process.env.NEXT_PUBLIC_APP_URL)
+      : undefined,
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "ArticleFeeds - Discover Amazing Content",
+    description:
+      "A modern platform for discovering and sharing articles across various categories",
+    siteName: "ArticleFeeds",
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "ArticleFeeds",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ArticleFeeds - Discover Amazing Content",
+    description:
+      "A modern platform for discovering and sharing articles across various categories",
+    images: ["/og-default.png"],
+  },
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
