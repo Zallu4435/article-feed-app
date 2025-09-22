@@ -6,6 +6,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useProfile, useUpdateProfile } from '@/hooks/useUser';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { profileSchema } from '@/schemas/user/profile';
@@ -13,10 +14,13 @@ import { toast } from 'react-hot-toast';
 import { CalendarIcon, EnvelopeIcon, PhoneIcon, UserIcon } from '@heroicons/react/24/outline';
 import { AuthGuard } from '@/components/ui/AuthGuard';
 import ProfilePictureUpload from '@/components/ui/ProfilePictureUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProfilePage() {
   const { data, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
+  const qc = useQueryClient();
+  const { refreshProfile } = useAuth();
 
   const user = data?.user;
 
@@ -45,7 +49,7 @@ export default function ProfilePage() {
         setValue('dateOfBirth', '');
       }
     }
-  }, [user, setValue]);
+  }, [user?.firstName, user?.lastName, user?.phone, user?.dateOfBirth, setValue]);
 
   return (
     <AuthGuard>
@@ -65,11 +69,19 @@ export default function ProfilePage() {
               />
               <ProfilePictureUpload
                 currentImageUrl={user?.profilePicture}
-                onUploaded={() => {
-                  window.location.reload();
+                onUploaded={(url: string) => {
+                  qc.setQueryData(['profile'], (oldData: any) => {
+                    if (!oldData?.user) return oldData;
+                    return { ...oldData, user: { ...oldData.user, profilePicture: url } };
+                  });
+                  refreshProfile().catch(() => {});
                 }}
                 onRemove={() => {
-                  window.location.reload();
+                  qc.setQueryData(['profile'], (oldData: any) => {
+                    if (!oldData?.user) return oldData;
+                    return { ...oldData, user: { ...oldData.user, profilePicture: null } };
+                  });
+                  refreshProfile().catch(() => {});
                 }}
                 size="sm"
                 showAsOverlay={true}

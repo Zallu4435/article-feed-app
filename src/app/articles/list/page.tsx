@@ -24,6 +24,7 @@ import { AuthGuard } from '@/components/ui/AuthGuard';
 import { WarningDialog } from '@/components/ui/WarningDialog';
 import { useArticles, useDeleteArticle } from '@/hooks/useArticles';
 import { apiFetch } from '@/lib/api';
+import { toast } from 'react-hot-toast';
 import { useCategories } from '@/hooks/useUser';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
@@ -313,8 +314,13 @@ const ListMyArticlesContent: React.FC = () => {
                   '/api/articles/bulk-delete',
                   { method: 'POST', body: { ids: confirm.ids } }
                 )
-                  .then(() => setSelected([]))
-                  .catch(() => {})
+                  .then((res) => {
+                    setSelected([]);
+                    toast.success(`${res.deleted} article(s) deleted`);
+                  })
+                  .catch((err) => {
+                    toast.error(err?.message || 'Failed to delete selected articles');
+                  })
                   .finally(() => articlesQuery.refetch());
               }
               setConfirm(null);
