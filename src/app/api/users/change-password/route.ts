@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase, getDatabase } from '@/lib/database';
-import { User } from '@/entities/User';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 import * as bcrypt from 'bcryptjs';
 import { verifyAccessToken } from '@/lib/jwt';
 
@@ -39,8 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'New password must be different from current password' }, { status: 400 });
     }
 
-    const repo = getDatabase().getRepository(User);
-    const user = await repo.findOne({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const ok = await bcrypt.compare(currentPassword, user.password);
@@ -51,8 +50,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'New password must be different from current password' }, { status: 400 });
     }
 
-    user.password = newPassword; 
-    await repo.save(user);
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: userId }, data: { password: hashed } });
 
     return NextResponse.json({ success: true });
   } catch (e) {

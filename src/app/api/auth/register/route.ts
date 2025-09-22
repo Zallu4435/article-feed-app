@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase, getDatabase } from "@/lib/database";
-import { User } from "@/entities/User";
-import { RefreshToken } from "@/entities/RefreshToken";
+import { initializeDatabase } from "@/lib/database";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { EmailVerification } from "@/entities/EmailVerification";
+import prisma from "@/lib/prisma";
 import { generateOtp, sendOtpEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
-    const db = getDatabase();
     const body = await request.json();
     const { firstName, lastName, phone, email, dateOfBirth, password } = body ?? {};
 
@@ -30,18 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters long" },
-        { status: 400 }
-      );
-    }
-
-    const userRepository = db.getRepository(User);
-    const refreshTokenRepository = db.getRepository(RefreshToken);
-    const emailVerificationRepo = db.getRepository(EmailVerification);
-
-    const existingUser = await userRepository.findOne({ where: [{ email }, { phone }] });
+    const existingUser = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
 
     if (existingUser) {
       const conflictField = existingUser.email === email ? "email" : "phone";
@@ -55,15 +41,11 @@ export async function POST(request: NextRequest) {
     const otp = generateOtp(6);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
-    const existingVerification = await emailVerificationRepo.findOne({ where: { email } });
+    const existingVerification = await prisma.emailVerification.findUnique({ where: { email } });
     if (existingVerification) {
-      existingVerification.otp = otp;
-      existingVerification.expiresAt = expiresAt;
-      existingVerification.attempts = 0;
-      await emailVerificationRepo.save(existingVerification);
+      await prisma.emailVerification.update({ where: { email }, data: { otp, expiresAt, attempts: 0 } });
     } else {
-      const verification = emailVerificationRepo.create({ email, otp, expiresAt });
-      await emailVerificationRepo.save(verification);
+      await prisma.emailVerification.create({ data: { email, otp, expiresAt } });
     }
 
     try {

@@ -33,7 +33,7 @@ const Header: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/articles/list?search=${encodeURIComponent(searchQuery.trim())}`;
+      window.location.href = `/articles/list?search=${encodeURIComponent(searchQuery.trim())}&owner=all`;
     }
   };
 

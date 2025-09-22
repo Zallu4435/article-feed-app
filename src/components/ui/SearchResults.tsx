@@ -20,6 +20,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
     limit: 8, 
     search: query.trim() || undefined,
     excludeBlocked: true,
+    owner: 'all',
     enabled: isAuthenticated && !!query.trim()
   });
 

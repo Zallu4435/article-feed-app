@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase, getDatabase } from '@/lib/database';
-import { User } from '@/entities/User';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 import { sendOtpEmail, generateOtp } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -23,12 +23,8 @@ export async function POST(request: NextRequest) {
     }
 
     await initializeDatabase();
-    const dataSource = getDatabase();
-    const userRepository = dataSource.getRepository(User);
 
-    const user = await userRepository.findOne({
-      where: { email: email.toLowerCase() }
-    });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
     if (!user) {
       return NextResponse.json(
@@ -40,18 +36,26 @@ export async function POST(request: NextRequest) {
     const otp = generateOtp(6);
     const otpExpiry = new Date(Date.now() + 600000); 
 
-    user.passwordResetOtp = otp;
-    user.passwordResetOtpExpiry = otpExpiry;
-    await userRepository.save(user);
-
     try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetOtp: otp,
+          passwordResetOtpExpiry: otpExpiry,
+        }
+      });
+
       await sendOtpEmail(user.email, otp);
     } catch (emailError) {
       console.error('Failed to send OTP email:', emailError);
 
-      user.passwordResetOtp = undefined;
-      user.passwordResetOtpExpiry = undefined;
-      await userRepository.save(user);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetOtp: null,
+          passwordResetOtpExpiry: null,
+        }
+      });
       
       return NextResponse.json(
         { message: 'Failed to send verification code. Please try again.' },
@@ -71,7 +75,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Intentionally do not destroy the DataSource here.
-    // Connection pooling is managed globally in `lib/database`.
+    // Prisma is managed globally
   }
 }

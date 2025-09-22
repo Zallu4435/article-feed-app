@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, initializeDatabase } from '@/lib/database';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -19,15 +20,15 @@ function isUuid(id: string): boolean {
 function getCloudinaryPublicIdFromUrl(url: string): string | null {
   try {
     const u = new URL(url);
-    const path = u.pathname; 
+    const path = u.pathname;
     const marker = '/upload/';
     const idx = path.indexOf(marker);
     if (idx === -1) return null;
-    let sub = path.substring(idx + marker.length); 
+    let sub = path.substring(idx + marker.length);
     const parts = sub.split('/');
     if (parts[0] && /^v\d+$/.test(parts[0])) parts.shift();
     const withoutVersion = parts.join('/');
-    return withoutVersion.replace(/\.[^/.]+$/, '') || null; 
+    return withoutVersion.replace(/\.[^/.]+$/, '') || null;
   } catch {
     return null;
   }
@@ -37,7 +38,6 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
 
-    // Authenticate user
     let token: string | undefined;
     const auth = request.headers.get('authorization');
     if (auth) token = auth.split(' ')[1];
@@ -64,22 +64,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDatabase();
-    const { Article } = await import('@/entities/Article');
-    const articleRepository = db.getRepository(Article);
-
-    const articles = await articleRepository
-      .createQueryBuilder('article')
-      .where('article.authorId = :userId', { userId })
-      .andWhere('article.id IN (:...ids)', { ids: validIds })
-      .getMany();
+    const articles = await prisma.article.findMany({
+      where: { authorId: userId, id: { in: validIds } },
+      select: { id: true, imageUrl: true }
+    });
 
     if (articles.length === 0) {
       return NextResponse.json({ deleted: 0, message: 'No articles found or you lack permission' });
     }
 
     await Promise.all(
-      articles.map(async (a: any) => {
+      articles.map(async (a) => {
         const img = a.imageUrl as string | undefined;
         if (!img) return;
         const publicId = getCloudinaryPublicIdFromUrl(img);
@@ -90,7 +85,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    await articleRepository.remove(articles);
+    await prisma.article.deleteMany({ where: { id: { in: articles.map((a) => a.id) } } });
 
     return NextResponse.json({ deleted: articles.length });
   } catch (error) {

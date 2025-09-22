@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { UserPreference } from "@/entities/UserPreference";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,17 +19,10 @@ export async function GET(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const userId = decoded.userId;
 
-    const { Article } = await import("@/entities/Article");
-    const { Category } = await import("@/entities/Category");
-    const articleRepository = getDatabase().getRepository(Article);
-    const preferenceRepository = getDatabase().getRepository(UserPreference);
-    const categoryRepository = getDatabase().getRepository(Category);
-
-    const preferences = await preferenceRepository
-      .createQueryBuilder("preference")
-      .leftJoinAndSelect("preference.category", "category")
-      .where("preference.userId = :userId", { userId })
-      .getMany();
+    const preferences = await prisma.userPreference.findMany({
+      where: { userId },
+      include: { category: true },
+    });
 
     if (preferences.length === 0) {
       return NextResponse.json({
@@ -42,29 +35,16 @@ export async function GET(request: NextRequest) {
 
     const preferredCategoryIds = preferences.map(p => p.categoryId);
 
-      const articles = await articleRepository
-        .createQueryBuilder("article")
-        .leftJoinAndSelect("article.author", "author")
-        .leftJoinAndSelect("article.category", "category")
-        .where("article.categoryId IN (:...categoryIds)", { categoryIds: preferredCategoryIds })
-        .andWhere("article.isBlocked = false")
-        .orderBy("article.createdAt", "DESC")
-        .limit(9)
-        .getMany();
-
-    const allCategories = await categoryRepository.find({
-      order: { name: "ASC" }
-    });
-
-    const allArticles = await articleRepository
-      .createQueryBuilder("article")
-      .select([
-        "article.id",
-        "article.viewers",
-        "article.likers",
-        "article.bookmarkers",
-      ])
-      .getMany();
+    const [articles, allCategories, allArticles] = await Promise.all([
+      prisma.article.findMany({
+        where: { categoryId: { in: preferredCategoryIds }, isBlocked: false },
+        include: { author: true, category: true },
+        orderBy: { createdAt: 'desc' },
+        take: 9,
+      }),
+      prisma.category.findMany({ orderBy: { name: 'asc' } }),
+      prisma.article.findMany({ select: { id: true, viewers: true, likers: true, bookmarkers: true } }),
+    ]);
 
     const toArray = (v: any): string[] => Array.isArray(v) ? v : (v ? String(v).split(',').filter(Boolean) : []);
 
@@ -83,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     const readingStreakDays = 0;
 
-    const summarized = articles.map((a: any) => ({
+    const summarized = articles.map((a) => ({
       id: a.id,
       title: a.title,
       description: a.description,
@@ -97,9 +77,9 @@ export async function GET(request: NextRequest) {
         : null,
       viewsCount: Number(a.viewsCount || 0),
       likesCount: Number(a.likesCount || 0),
-      likedByCurrentUser: Array.isArray(a.likers) ? a.likers.includes(userId) : (a.likers ? String(a.likers).split(',').filter(Boolean).includes(userId) : false),
+      likedByCurrentUser: toArray(a.likers).includes(userId),
       bookmarksCount: Number(a.bookmarksCount || 0),
-      bookmarkedByCurrentUser: Array.isArray(a.bookmarkers) ? a.bookmarkers.includes(userId) : (a.bookmarkers ? String(a.bookmarkers).split(',').filter(Boolean).includes(userId) : false),
+      bookmarkedByCurrentUser: toArray(a.bookmarkers).includes(userId),
     }));
 
     return NextResponse.json({

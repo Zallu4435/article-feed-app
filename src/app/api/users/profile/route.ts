@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 
@@ -33,12 +34,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     }
     const userId = decoded.userId;
-    const { User } = await import("@/entities/User");
-    const userRepository = getDatabase().getRepository(User);
 
-    const userWithPreferences = await userRepository.findOne({
+    const userWithPreferences = await prisma.user.findUnique({
       where: { id: userId },
-      relations: ["preferences", "preferences.category"]
+      include: { preferences: { include: { category: true } } }
     });
     if (!userWithPreferences) {
       return NextResponse.json(
@@ -47,7 +46,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { password: _, ...userWithoutPassword } = userWithPreferences;
+    const { password: _, ...userWithoutPassword } = userWithPreferences as any;
     return NextResponse.json({ user: userWithoutPassword });
   } catch (error) {
     return NextResponse.json(
@@ -77,20 +76,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     }
     const userId = decoded.userId;
-    const { User } = await import("@/entities/User");
-    const userRepository = getDatabase().getRepository(User);
     const body = await request.json();
     const { firstName, lastName, phone, dateOfBirth, profilePicture } = body as { 
       firstName?: string; 
       lastName?: string; 
       phone?: string; 
       dateOfBirth?: string;
-      profilePicture?: string;
+      profilePicture?: string | null;
     };
 
-    const existingUser = await userRepository.findOne({
-      where: { id: userId }
-    });
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) {
       return NextResponse.json(
         { error: "User not found" },
@@ -111,16 +106,18 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    Object.assign(existingUser, {
-      firstName: firstName || existingUser.firstName,
-      lastName: lastName || existingUser.lastName,
-      phone: phone || existingUser.phone,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : existingUser.dateOfBirth,
-      profilePicture: profilePicture !== undefined ? profilePicture : existingUser.profilePicture
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName: firstName ?? existingUser.firstName,
+        lastName: lastName ?? existingUser.lastName,
+        phone: phone ?? existingUser.phone,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : existingUser.dateOfBirth,
+        profilePicture: profilePicture !== undefined ? profilePicture : existingUser.profilePicture
+      }
     });
 
-    await userRepository.save(existingUser);
-    const { password: _, ...userWithoutPassword } = existingUser;
+    const { password: _, ...userWithoutPassword } = updated as any;
     return NextResponse.json({
       message: "Profile updated successfully",
       user: userWithoutPassword
@@ -155,27 +152,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     const userId = decoded.userId;
-    const db = getDatabase();
-    const { User } = await import("@/entities/User");
-    const { RefreshToken } = await import("@/entities/RefreshToken");
-    const { UserPreference } = await import("@/entities/UserPreference");
-    const { Article } = await import("@/entities/Article");
 
-    const userRepo = db.getRepository(User);
-    const refreshRepo = db.getRepository(RefreshToken);
-    const prefRepo = db.getRepository(UserPreference);
-    const articleRepo = db.getRepository(Article);
-
-    const existingUser = await userRepo.findOne({ where: { id: userId } });
+    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!existingUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    await prefRepo.delete({ userId });
-    await refreshRepo.delete({ user: { id: userId } as any });
-    await articleRepo.delete({ authorId: userId });
-
-    await userRepo.delete({ id: userId });
+    await prisma.$transaction([
+      prisma.userPreference.deleteMany({ where: { userId } }),
+      prisma.refreshToken.deleteMany({ where: { userId } }),
+      prisma.article.deleteMany({ where: { authorId: userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ]);
 
     const res = NextResponse.json({ message: 'Account deleted' });
 

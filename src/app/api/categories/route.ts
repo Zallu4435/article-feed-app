@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,11 +8,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     await initializeDatabase();
-    const { Category } = await import("@/entities/Category");
-    const categoryRepository = getDatabase().getRepository(Category);
 
-    const categories = await categoryRepository.find({
-      order: { name: "ASC" }
+    const categories = await prisma.category.findMany({
+      orderBy: { name: "asc" }
     });
 
     return NextResponse.json({ categories });
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description } = body as { name?: string; description?: string | null };
 
     if (!name) {
       return NextResponse.json(
@@ -37,12 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { Category } = await import("@/entities/Category");
-    const categoryRepository = getDatabase().getRepository(Category);
-
-    const existingCategory = await categoryRepository.findOne({
-      where: { name }
-    });
+    const existingCategory = await prisma.category.findUnique({ where: { name } });
 
     if (existingCategory) {
       return NextResponse.json(
@@ -51,12 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const category = categoryRepository.create({
-      name,
-      description
-    });
-
-    await categoryRepository.save(category);
+    const category = await prisma.category.create({ data: { name, description: description ?? null } });
 
     return NextResponse.json({
       message: "Category created successfully",

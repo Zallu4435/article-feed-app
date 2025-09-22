@@ -27,4 +27,4 @@ export interface ResetPasswordFormData {
 }
 
 
-import type { User } from '@/entities/User';
+import type { User } from '@/generated/prisma';

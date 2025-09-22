@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase, getDatabase } from "@/lib/database";
-import { User } from "@/entities/User";
-import { RefreshToken } from "@/entities/RefreshToken";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
@@ -23,11 +22,8 @@ export async function POST(request: NextRequest) {
     }
 
     await initializeDatabase();
-    const db = getDatabase();
-    const userRepository = db.getRepository(User);
-    const refreshTokenRepository = db.getRepository(RefreshToken);
 
-    const user = await userRepository.findOne({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return NextResponse.json(
         { error: { code: "user_not_found", message: "No account found for this email" } },
@@ -35,7 +31,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isValidPassword = await user.validatePassword(password);
+    const bcrypt = await import("bcryptjs");
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
       return NextResponse.json(
@@ -49,13 +46,13 @@ export async function POST(request: NextRequest) {
  
     const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
 
-    await refreshTokenRepository.save(
-      refreshTokenRepository.create({
+    await prisma.refreshToken.create({
+      data: {
         token: refreshToken,
-        user: user,
+        userId: user.id,
         expiresAt: refreshTokenExpiry,
-      })
-    );
+      }
+    });
 
     const { password: _, ...userWithoutPassword } = user;
 

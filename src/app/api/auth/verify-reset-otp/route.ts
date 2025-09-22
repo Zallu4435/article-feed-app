@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase, getDatabase } from '@/lib/database';
-import { User } from '@/entities/User';
-import { MoreThan } from 'typeorm';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,14 +21,12 @@ export async function POST(request: NextRequest) {
     }
 
     await initializeDatabase();
-    const dataSource = getDatabase();
-    const userRepository = dataSource.getRepository(User);
 
-    const user = await userRepository.findOne({
+    const user = await prisma.user.findFirst({
       where: {
         email: email.toLowerCase(),
         passwordResetOtp: otp,
-        passwordResetOtpExpiry: MoreThan(new Date()) 
+        passwordResetOtpExpiry: { gt: new Date() }
       }
     });
 
@@ -40,9 +37,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await userRepository.update(user.id, {
-      passwordResetOtp: null,
-      passwordResetOtpExpiry: null,
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetOtp: null,
+        passwordResetOtpExpiry: null,
+      }
     });
 
     return NextResponse.json(
@@ -57,6 +57,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Do not destroy the global DataSource; connection pooling is managed in lib/database.
+    // Prisma is managed globally
   }
 }

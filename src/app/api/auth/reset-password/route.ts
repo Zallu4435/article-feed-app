@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase, getDatabase } from '@/lib/database';
-import { User } from '@/entities/User';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,12 +29,8 @@ export async function POST(request: NextRequest) {
     }
 
     await initializeDatabase();
-    const dataSource = getDatabase();
-    const userRepository = dataSource.getRepository(User);
 
-    const user = await userRepository.findOne({
-      where: { email: email.toLowerCase() }
-    });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
     if (!user) {
       return NextResponse.json(
@@ -50,8 +46,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    user.password = password;
-    await userRepository.save(user);
+    const bcrypt = await import('bcryptjs');
+    const hashed = await bcrypt.hash(password, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed }
+    });
 
     return NextResponse.json(
       { message: 'Password reset successfully' },
@@ -64,6 +65,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Do not destroy the global DataSource; connection pooling is managed in lib/database.
+    // Prisma connection is managed globally in lib/prisma
   }
 }

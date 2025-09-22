@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase, getDatabase } from "@/lib/database";
-import { EmailVerification } from "@/entities/EmailVerification";
-import { User } from "@/entities/User";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import { generateOtp, sendOtpEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -13,7 +12,6 @@ const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
-    const db = getDatabase();
     const body = await request.json();
     const { email } = body ?? {};
 
@@ -24,11 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userRepository = db.getRepository(User);
-    const emailVerificationRepo = db.getRepository(EmailVerification);
-
-    // If user already exists, do not send OTP
-    const existingUser = await userRepository.findOne({ where: { email } });
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return NextResponse.json(
         { error: { code: "conflict", message: "User with this email already exists", details: { email: "Already in use" } } },
@@ -36,10 +30,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await emailVerificationRepo.findOne({ where: { email } });
+    const existing = await prisma.emailVerification.findUnique({ where: { email } });
 
     if (existing) {
-      // Derive lastSentAt from expiresAt - TTL
       const lastSentAt = new Date(existing.expiresAt.getTime() - OTP_TTL_MS);
       const now = Date.now();
       const msSinceLast = now - lastSentAt.getTime();
@@ -56,13 +49,9 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
     if (existing) {
-      existing.otp = otp;
-      existing.expiresAt = expiresAt;
-      existing.attempts = 0;
-      await emailVerificationRepo.save(existing);
+      await prisma.emailVerification.update({ where: { email }, data: { otp, expiresAt, attempts: 0 } });
     } else {
-      const record = emailVerificationRepo.create({ email, otp, expiresAt });
-      await emailVerificationRepo.save(record);
+      await prisma.emailVerification.create({ data: { email, otp, expiresAt } });
     }
 
     try {

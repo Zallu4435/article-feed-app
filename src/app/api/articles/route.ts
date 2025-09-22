@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get("categoryId");
     const search = searchParams.get("search");
     const excludeBlocked = (searchParams.get("excludeBlocked") || 'true') === 'true';
+    const owner = (searchParams.get("owner") || 'me').toLowerCase();
 
     let token: string | undefined;
     const auth = request.headers.get('authorization');
@@ -23,61 +25,59 @@ export async function GET(request: NextRequest) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const currentUserId = decoded.userId;
 
-    const { Article } = await import("@/entities/Article");
-    const articleRepository = getDatabase().getRepository(Article);
-    const queryBuilder = articleRepository
-      .createQueryBuilder("article")
-      .leftJoinAndSelect("article.category", "category")
-      .select([
-        "article.id",
-        "article.title", 
-        "article.description",
-        "article.imageUrl",
-        "article.createdAt",
-        "article.isBlocked",
-        "category.id",
-        "category.name"
-      ]);
-
-    if (excludeBlocked) {
-      queryBuilder.andWhere('article."isBlocked" = false');
+    const where: any = {};
+    if (owner !== 'all') {
+      where.authorId = currentUserId;
     }
-    queryBuilder.andWhere('article.authorId = :authorId', { authorId: currentUserId });
+    if (excludeBlocked) where.isBlocked = false;
 
     if (categoryId) {
       const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(categoryId);
       if (isUuid) {
-        queryBuilder.andWhere("article.categoryId = :categoryId", { categoryId });
+        where.categoryId = categoryId;
       } else {
-        queryBuilder.andWhere("LOWER(category.name) = LOWER(:categoryName)", { categoryName: categoryId });
+        where.category = { name: { equals: categoryId, mode: 'insensitive' as const } };
       }
     }
 
     if (search) {
-      queryBuilder.andWhere(
-        "(article.title ILIKE :search OR article.description ILIKE :search OR article.content ILIKE :search OR article.tags ILIKE :search)",
-        { search: `%${search}%` }
-      );
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { content: { contains: search, mode: 'insensitive' } },
+        { tags: { has: search } },
+      ];
     }
 
-    const total = await queryBuilder.getCount();
+    const [total, articles] = await Promise.all([
+      prisma.article.count({ where }),
+      prisma.article.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          imageUrl: true,
+          createdAt: true,
+          isBlocked: true,
+          category: { select: { id: true, name: true } },
+          author: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      })
+    ]);
 
-    const articles = await queryBuilder
-      .orderBy("article.createdAt", "DESC")
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-
-    const summarized = articles.map((a: any) => ({
+    const summarized = articles.map((a) => ({
       id: a.id,
       title: a.title,
       description: a.description,
       imageUrl: a.imageUrl ?? null,
       createdAt: a.createdAt,
-      category: a.category
-        ? { id: a.category.id, name: a.category.name }
-        : null,
+      category: a.category ? { id: a.category.id, name: a.category.name } : null,
       isBlocked: !!a.isBlocked,
+      author: a.author ? { firstName: a.author.firstName || '', lastName: a.author.lastName || '' } : null,
     }));
 
     return NextResponse.json({
@@ -125,29 +125,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { Article } = await import("@/entities/Article");
-    const articleRepository = getDatabase().getRepository(Article);
     const decoded = token ? (jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }) : undefined;
-    const userId = decoded?.userId;
+    const userId = decoded?.userId!;
 
-    const article = articleRepository.create({
-      title,
-      description,
-      content,
-      imageUrl,
-      tags: tags || [],
-      authorId: userId!,
-      categoryId,
-      isBlocked: false,
-      viewers: [],
-      likers: [],
-      bookmarkers: [],
-      viewsCount: 0,
-      likesCount: 0,
-      bookmarksCount: 0,
+    const article = await prisma.article.create({
+      data: {
+        title,
+        description,
+        content,
+        imageUrl: imageUrl ?? null,
+        tags: tags || [],
+        authorId: userId,
+        categoryId,
+        isBlocked: false,
+        viewers: [],
+        likers: [],
+        bookmarkers: [],
+        viewsCount: 0,
+        likesCount: 0,
+        bookmarksCount: 0,
+      }
     });
-
-    await articleRepository.save(article);
 
     return NextResponse.json({
       message: "Article created successfully",

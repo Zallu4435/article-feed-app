@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import jwt from "jsonwebtoken";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,13 +77,10 @@ export async function POST(request: NextRequest) {
       ).end(buffer);
     });
 
-    const imageUrl = (result as any).secure_url;
-    const publicId = (result as any).public_id;
+    const imageUrl = (result as any).secure_url as string;
+    const publicId = (result as any).public_id as string;
 
-    const { User } = await import("@/entities/User");
-    const userRepository = getDatabase().getRepository(User);
-    
-    const user = await userRepository.findOne({ where: { id: decoded.userId } });
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -93,17 +91,14 @@ export async function POST(request: NextRequest) {
         const uploadIndex = urlParts.findIndex(part => part === 'upload');
         if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
           const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
-
-          const publicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
-          await cloudinary.uploader.destroy(publicId);
+          const oldPublicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
+          await cloudinary.uploader.destroy(oldPublicId);
         }
       } catch (error) {
-
       }
     }
 
-    user.profilePicture = imageUrl;
-    await userRepository.save(user);
+    await prisma.user.update({ where: { id: decoded.userId }, data: { profilePicture: imageUrl } });
 
     return NextResponse.json({
       message: "Profile picture uploaded successfully",

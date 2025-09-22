@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function getUserIdFromRequest(request: NextRequest): string | null {
-
   let token: string | undefined;
   const auth = request.headers.get('authorization');
   if (auth) token = auth.split(' ')[1];
@@ -34,60 +34,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    const db = getDatabase();
-    const { Article } = await import("@/entities/Article");
-    const articleRepo = db.getRepository(Article);
-
     if (type === 'block' || type === 'unblock') {
-      const article = await articleRepo.findOne({ where: { id: articleId } });
-      if (!article || (article as any).authorId !== userId) {
+      const existing = await prisma.article.findUnique({ where: { id: articleId }, select: { authorId: true } });
+      if (!existing || existing.authorId !== userId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
 
     if (type === 'unblock') {
-      const art = await articleRepo.findOne({ where: { id: articleId } });
-      if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      (art as any).isBlocked = false;
-      await articleRepo.save(art as any);
+      await prisma.article.update({ where: { id: articleId }, data: { isBlocked: false } });
       return NextResponse.json({ success: true });
     }
 
     if (type === 'block') {
-      const art = await articleRepo.findOne({ where: { id: articleId } });
-      if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      (art as any).isBlocked = true;
-      await articleRepo.save(art as any);
+      await prisma.article.update({ where: { id: articleId }, data: { isBlocked: true } });
       return NextResponse.json({ success: true });
     }
 
-    const art = await articleRepo.findOne({ where: { id: articleId } });
+    const art = await prisma.article.findUnique({ where: { id: articleId } });
     if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    const likers: string[] = Array.isArray((art as any).likers) ? (art as any).likers : ((art as any).likers ? String((art as any).likers).split(',').filter(Boolean) : []);
-    const viewers: string[] = Array.isArray((art as any).viewers) ? (art as any).viewers : ((art as any).viewers ? String((art as any).viewers).split(',').filter(Boolean) : []);
-    const bookmarkers: string[] = Array.isArray((art as any).bookmarkers) ? (art as any).bookmarkers : ((art as any).bookmarkers ? String((art as any).bookmarkers).split(',').filter(Boolean) : []);
+
+    const likers: string[] = Array.isArray(art.likers) ? art.likers : [];
+    const viewers: string[] = Array.isArray(art.viewers) ? art.viewers : [];
+    const bookmarkers: string[] = Array.isArray(art.bookmarkers) ? art.bookmarkers : [];
+
+    let data: any = {};
 
     if (type === 'like') {
       if (!likers.includes(userId)) likers.push(userId);
-      (art as any).likers = likers;
-      (art as any).likesCount = likers.length;
+      data.likers = likers;
+      data.likesCount = likers.length;
     } else if (type === 'dislike') {
       if (likers.includes(userId)) {
-        (art as any).likers = likers.filter((x) => x !== userId);
-        (art as any).likesCount = ((art as any).likers as string[]).length;
+        const updatedLikers = likers.filter((x) => x !== userId);
+        data.likers = updatedLikers;
+        data.likesCount = updatedLikers.length;
       }
     } else if (type === 'bookmark') {
       if (!bookmarkers.includes(userId)) bookmarkers.push(userId);
-      (art as any).bookmarkers = bookmarkers;
-      (art as any).bookmarksCount = bookmarkers.length;
+      data.bookmarkers = bookmarkers;
+      data.bookmarksCount = bookmarkers.length;
     } else if (type === 'unbookmark') {
       if (bookmarkers.includes(userId)) {
-        (art as any).bookmarkers = bookmarkers.filter((x) => x !== userId);
-        (art as any).bookmarksCount = ((art as any).bookmarkers as string[]).length;
+        const updated = bookmarkers.filter((x) => x !== userId);
+        data.bookmarkers = updated;
+        data.bookmarksCount = updated.length;
       }
     }
 
-    await articleRepo.save(art as any);
+    await prisma.article.update({ where: { id: articleId }, data });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

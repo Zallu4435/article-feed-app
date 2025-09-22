@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase, getDatabase } from "@/lib/database";
-import { RefreshToken } from "@/entities/RefreshToken";
-import { User } from "@/entities/User";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import { verifyRefreshToken, generateAccessToken } from "@/lib/jwt";
 
 export const runtime = "nodejs";
@@ -10,10 +9,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
-
-    const db = getDatabase();
-    const refreshTokenRepository = db.getRepository(RefreshToken);
-    db.getRepository(User);
 
     const refreshToken = request.cookies.get("refresh_token")?.value;
     if (!refreshToken) {
@@ -27,10 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid or expired refresh token" }, { status: 401 });
     }
 
-    const dbToken = await refreshTokenRepository.findOne({
-      where: { token: refreshToken },
-      relations: ["user"],
-    });
+    const dbToken = await prisma.refreshToken.findFirst({ where: { token: refreshToken } });
     if (!dbToken || dbToken.expiresAt < new Date()) {
       return NextResponse.json({ error: "Refresh token not found or expired" }, { status: 401 });
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase, getDatabase } from '@/lib/database';
-import { User } from '@/entities/User';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,12 +15,8 @@ export async function GET(request: NextRequest) {
     }
 
     await initializeDatabase();
-    const dataSource = getDatabase();
-    const userRepository = dataSource.getRepository(User);
 
-    const user = await userRepository.findOne({
-      where: { email: email.toLowerCase() }
-    });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
     if (!user) {
       return NextResponse.json(
@@ -48,6 +44,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Do not destroy the global DataSource; connection pooling is managed in lib/database.
+    // Prisma is managed globally
   }
 }

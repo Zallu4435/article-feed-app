@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
-import { UserPreference } from "@/entities/UserPreference";
-import { Category } from "@/entities/Category";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,11 +16,10 @@ export async function GET(request: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const userId = decoded?.userId;
-    const preferenceRepository = getDatabase().getRepository(UserPreference);
 
-    const preferences = await preferenceRepository.find({
+    const preferences = await prisma.userPreference.findMany({
       where: { userId },
-      relations: ["category"]
+      include: { category: true }
     });
 
     return NextResponse.json({ preferences });
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
     const body = await request.json();
-    const { categoryId } = body;
+    const { categoryId } = body as { categoryId?: string };
     const cookieToken = request.cookies.get('access_token')?.value;
     const auth = request.headers.get('authorization');
     const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
@@ -54,23 +52,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDatabase();
-    const preferenceRepository = db.getRepository(UserPreference);
-    const categoryRepository = db.getRepository(Category);
-
-    let resolvedCategoryId: string | null = null;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let resolvedCategoryId: string | null = null;
     if (uuidRegex.test(String(categoryId))) {
       resolvedCategoryId = String(categoryId);
     } else {
-      const cat = await categoryRepository.findOne({ where: { name: String(categoryId) } });
+      const cat = await prisma.category.findUnique({ where: { name: String(categoryId) } });
       if (!cat) {
         return NextResponse.json({ error: "Category not found" }, { status: 404 });
       }
       resolvedCategoryId = cat.id;
     }
 
-    const existingPreference = await preferenceRepository.findOne({ where: { userId, categoryId: resolvedCategoryId } });
+    const existingPreference = await prisma.userPreference.findFirst({ where: { userId, categoryId: resolvedCategoryId } });
 
     if (existingPreference) {
       return NextResponse.json(
@@ -79,9 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const preference = preferenceRepository.create({ userId, categoryId: resolvedCategoryId });
-
-    await preferenceRepository.save(preference);
+    const preference = await prisma.userPreference.create({ data: { userId, categoryId: resolvedCategoryId } });
 
     return NextResponse.json({
       message: "Preference added successfully",
@@ -117,23 +109,19 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const db = getDatabase();
-    const preferenceRepository = db.getRepository(UserPreference);
-    const categoryRepository = db.getRepository(Category);
-
-    let resolvedCategoryId: string | null = null;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let resolvedCategoryId: string | null = null;
     if (uuidRegex.test(String(categoryId))) {
       resolvedCategoryId = String(categoryId);
     } else {
-      const cat = await categoryRepository.findOne({ where: { name: String(categoryId) } });
+      const cat = await prisma.category.findUnique({ where: { name: String(categoryId) } });
       if (!cat) {
         return NextResponse.json({ error: "Category not found" }, { status: 404 });
       }
       resolvedCategoryId = cat.id;
     }
 
-    const preference = await preferenceRepository.findOne({ where: { userId, categoryId: resolvedCategoryId } });
+    const preference = await prisma.userPreference.findFirst({ where: { userId, categoryId: resolvedCategoryId } });
 
     if (!preference) {
       return NextResponse.json(
@@ -142,7 +130,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await preferenceRepository.remove(preference);
+    await prisma.userPreference.delete({ where: { id: preference.id } });
 
     return NextResponse.json({
       message: "Preference removed successfully"

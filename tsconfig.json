@@ -24,7 +24,7 @@
     "typeRoots": ["./node_modules/@types"],
     "paths": {
       "@/*": ["./src/*"],
-      "@/entities/*": ["./src/entities/*"],
+      
       "@/lib/*": ["./src/lib/*"],
       "@/middleware/*": ["./src/middleware/*"],
       "@/types/*": ["./src/types/*"]
@@ -35,7 +35,7 @@
     "**/*.ts", 
     "**/*.tsx", 
     ".next/types/**/*.ts",
-    "ormconfig.ts"
+    
   ],
   "exclude": ["node_modules"]
 }

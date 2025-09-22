@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, initializeDatabase } from '@/lib/database';
+import { initializeDatabase } from '@/lib/database';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 
 export const runtime = 'nodejs';
@@ -28,16 +29,13 @@ export async function POST(request: NextRequest) {
     const { articleId } = body as { articleId?: string };
     if (!articleId) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
-    const { Article } = await import('@/entities/Article');
-    const repo = getDatabase().getRepository(Article);
-    const art = await repo.findOne({ where: { id: articleId } });
+    const art = await prisma.article.findUnique({ where: { id: articleId } });
     if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    const viewers: string[] = Array.isArray((art as any).viewers) ? (art as any).viewers : ((art as any).viewers ? String((art as any).viewers).split(',').filter(Boolean) : []);
+    const viewers: string[] = Array.isArray(art.viewers) ? art.viewers : [];
     if (viewers.includes(userId)) return NextResponse.json({ success: true, viewed: false });
     viewers.push(userId);
-    (art as any).viewers = viewers;
-    (art as any).viewsCount = viewers.length;
-    await repo.save(art as any);
+
+    await prisma.article.update({ where: { id: articleId }, data: { viewers, viewsCount: viewers.length } });
     return NextResponse.json({ success: true, viewed: true });
   } catch (e) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDatabase, initializeDatabase } from "@/lib/database";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { v2 as cloudinary } from "cloudinary";
 export const runtime = "nodejs";
@@ -56,16 +57,13 @@ export async function GET(
       } catch {}
     }
 
-    const { Article } = await import("@/entities/Article");
-    const articleRepository = getDatabase().getRepository(Article);
-
-    const article = await articleRepository
-      .createQueryBuilder('article')
-      .leftJoinAndSelect('article.author', 'author')
-      .leftJoinAndSelect('article.category', 'category')
-      .where('article.id = :id', { id })
-      .andWhere('article."isBlocked" = false')
-      .getOne();
+    const article = await prisma.article.findFirst({
+      where: { id, isBlocked: false },
+      include: {
+        author: true,
+        category: true,
+      },
+    });
 
     if (!article) {
       return NextResponse.json(
@@ -76,8 +74,8 @@ export async function GET(
 
     const articleWithFlags = {
       ...article,
-      likedByCurrentUser: currentUserId ? (Array.isArray((article as any).likers) ? (article as any).likers.includes(currentUserId) : ((article as any).likers ? String((article as any).likers).split(',').filter(Boolean).includes(currentUserId) : false)) : false,
-      bookmarkedByCurrentUser: currentUserId ? (Array.isArray((article as any).bookmarkers) ? (article as any).bookmarkers.includes(currentUserId) : ((article as any).bookmarkers ? String((article as any).bookmarkers).split(',').filter(Boolean).includes(currentUserId) : false)) : false,
+      likedByCurrentUser: currentUserId ? (article.likers ?? []).includes(currentUserId) : false,
+      bookmarkedByCurrentUser: currentUserId ? (article.bookmarkers ?? []).includes(currentUserId) : false,
     };
 
     return NextResponse.json({ article: articleWithFlags });
@@ -107,7 +105,6 @@ export async function PUT(
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await context.params;
-    const { Article } = await import("@/entities/Article");
     const body = await request.json();
     const { title, description, content, imageUrl, tags, categoryId } = body as {
       title?: string; description?: string; content?: string; imageUrl?: string | null; tags?: string[]; categoryId?: string;
@@ -115,19 +112,17 @@ export async function PUT(
     const decoded = token ? (jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }) : undefined;
     const userId = decoded?.userId;
 
-    const articleRepository = getDatabase().getRepository(Article);
+    const existing = await prisma.article.findFirst({ where: { id, authorId: userId } });
 
-    const article = await articleRepository.findOne({ where: { id, authorId: userId } });
-
-    if (!article) {
+    if (!existing) {
       return NextResponse.json(
         { error: "Article not found or you don't have permission to edit it" },
         { status: 404 }
       );
     }
 
-    if (imageUrl !== undefined && imageUrl !== null && imageUrl !== (article as any).imageUrl && (article as any).imageUrl) {
-      const oldUrl = (article as any).imageUrl as string;
+    if (imageUrl !== undefined && imageUrl !== null && imageUrl !== existing.imageUrl && existing.imageUrl) {
+      const oldUrl = existing.imageUrl as string;
       const publicId = getCloudinaryPublicIdFromUrl(oldUrl);
       if (publicId) {
         try {
@@ -138,20 +133,21 @@ export async function PUT(
       }
     }
 
-    Object.assign(article, {
-      title: title || article.title,
-      description: description || article.description,
-      content: content || article.content,
-      imageUrl: imageUrl !== undefined ? imageUrl : article.imageUrl,
-      tags: tags || article.tags,
-      categoryId: categoryId || article.categoryId
+    const updated = await prisma.article.update({
+      where: { id },
+      data: {
+        title: title ?? existing.title,
+        description: description ?? existing.description,
+        content: content ?? existing.content,
+        imageUrl: imageUrl !== undefined ? imageUrl : existing.imageUrl,
+        tags: tags ?? existing.tags,
+        categoryId: categoryId ?? existing.categoryId
+      }
     });
-
-    await articleRepository.save(article);
 
     return NextResponse.json({
       message: "Article updated successfully",
-      article
+      article: updated
     });
 
   } catch (error) {
@@ -179,23 +175,20 @@ export async function DELETE(
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await context.params;
-    const { Article } = await import("@/entities/Article");
     const decoded = token ? (jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }) : undefined;
     const userId = decoded?.userId;
 
-    const articleRepository = getDatabase().getRepository(Article);
+    const existing = await prisma.article.findFirst({ where: { id, authorId: userId } });
 
-    const article = await articleRepository.findOne({ where: { id, authorId: userId } });
-
-    if (!article) {
+    if (!existing) {
       return NextResponse.json(
         { error: "Article not found or you don't have permission to delete it" },
         { status: 404 }
       );
     }
 
-    if ((article as any).imageUrl) {
-      const publicId = getCloudinaryPublicIdFromUrl((article as any).imageUrl as string);
+    if (existing.imageUrl) {
+      const publicId = getCloudinaryPublicIdFromUrl(existing.imageUrl as string);
       if (publicId) {
         try {
           await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
@@ -205,7 +198,7 @@ export async function DELETE(
       }
     }
 
-    await articleRepository.remove(article);
+    await prisma.article.delete({ where: { id } });
 
     return NextResponse.json({
       message: "Article deleted successfully"

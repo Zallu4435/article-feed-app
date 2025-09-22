@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -26,7 +27,8 @@ import { apiFetch } from '@/lib/api';
 import { useCategories } from '@/hooks/useUser';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
-const ListMyArticlesPage: React.FC = () => {
+const ListMyArticlesContent: React.FC = () => {
+  const searchParams = useSearchParams();
   const [view, setView] = useState<'table' | 'card'>('table'    );
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -44,10 +46,18 @@ const ListMyArticlesPage: React.FC = () => {
     return [...base, ...fromApi];
   }, [cats.data]);
 
-  const articlesQuery = useArticles({ page, limit: pageSize, search: debouncedSearch || undefined, categoryId: categoryId === 'all' ? undefined : categoryId, excludeBlocked: false });
+  const ownerParam = searchParams.get('owner') === 'all' ? 'all' : undefined;
+  const articlesQuery = useArticles({ page, limit: pageSize, search: debouncedSearch || undefined, categoryId: categoryId === 'all' ? undefined : categoryId, excludeBlocked: false, owner: ownerParam });
   const articles = articlesQuery.data?.articles || [];
   const totalPages = Math.max(1, Number(articlesQuery.data?.pagination?.totalPages || 1));
   const isLoading = articlesQuery.isLoading;
+
+  // Initialize from URL ?search= on first load and when URL changes
+  useEffect(() => {
+    const q = (searchParams.get('search') || '').trim();
+    setSearch(q);
+    setDebouncedSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -79,6 +89,7 @@ const ListMyArticlesPage: React.FC = () => {
   };
 
   return (
+    <>
     <AuthGuard>
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -313,6 +324,21 @@ const ListMyArticlesPage: React.FC = () => {
       </div>
     </div>
     </AuthGuard>
+    </>
+  );
+};
+
+const ListMyArticlesPage: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="py-10 flex items-center justify-center">
+          <LoadingSpinner size={28} text="Loading articles..." />
+        </div>
+      }
+    >
+      <ListMyArticlesContent />
+    </Suspense>
   );
 };
 

@@ -1,24 +1,20 @@
-import AppDataSource from "./datasource";
-import "reflect-metadata";
+import prisma from "./prisma";
 
 let isInitializing = false;
-let initializationPromise: Promise<any> | null = null;
+let initializationPromise: Promise<typeof prisma> | null = null;
 
 export const initializeDatabase = async () => {
-
   if (isInitializing) {
     return initializationPromise;
   }
 
-  if (AppDataSource.isInitialized) {
-    return AppDataSource;
-  }
-
+  // Prisma lazily connects on first query; do a lightweight check
   isInitializing = true;
-  initializationPromise = AppDataSource.initialize()
+  initializationPromise = prisma
+    .$queryRawUnsafe("SELECT 1")
     .then(() => {
-      console.log("✅ Database connection established successfully");
-      return AppDataSource;
+      console.log("✅ Database connection validated successfully");
+      return prisma;
     })
     .catch((error) => {
       console.error("❌ Error during database initialization:", error);
@@ -31,33 +27,22 @@ export const initializeDatabase = async () => {
   return initializationPromise;
 };
 
-export const getDatabase = () => {
-  if (!AppDataSource.isInitialized) {
-    throw new Error("Database not initialized. Call initializeDatabase() first.");
-  }
-  return AppDataSource;
-};
+export const getDatabase = () => prisma;
 
 export const closeDatabase = async () => {
-  if (AppDataSource.isInitialized) {
-    await AppDataSource.destroy();
-    console.log("🔌 Database connection closed");
-  }
+  await prisma.$disconnect();
+  console.log("🔌 Database connection closed");
 };
 
 export const checkDatabaseHealth = async () => {
   try {
-    const dataSource = getDatabase();
-    const queryRunner = dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.query("SELECT 1");
-    await queryRunner.release();
+    await prisma.$queryRawUnsafe("SELECT 1");
     return { status: "healthy", timestamp: new Date().toISOString() };
   } catch (error) {
-    return { 
-      status: "unhealthy", 
+    return {
+      status: "unhealthy",
       error: error instanceof Error ? error.message : "Unknown error",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 };

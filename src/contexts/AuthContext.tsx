@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
-import { User } from '@/entities/User';
+import type { User } from '@/generated/prisma';
 import type { AuthContextType, RegisterData } from '@/types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

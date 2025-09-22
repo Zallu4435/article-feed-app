@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase, getDatabase } from "@/lib/database";
-import { EmailVerification } from "@/entities/EmailVerification";
-import { User } from "@/entities/User";
-import { RefreshToken } from "@/entities/RefreshToken";
+import { initializeDatabase } from "@/lib/database";
+import prisma from "@/lib/prisma";
 import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 
 export const runtime = "nodejs";
@@ -11,8 +9,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     await initializeDatabase();
-    
-    const db = getDatabase();
     const body = await request.json();
     const { firstName, lastName, phone, email, dateOfBirth, password, otp } = body ?? {};
 
@@ -33,11 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userRepository = db.getRepository(User);
-    const refreshTokenRepository = db.getRepository(RefreshToken);
-    const emailVerificationRepo = db.getRepository(EmailVerification);
-
-    const verification = await emailVerificationRepo.findOne({ where: { email } });
+    const verification = await prisma.emailVerification.findUnique({ where: { email } });
     if (!verification) {
       console.warn("[register:verify] No OTP record for", email);
       return NextResponse.json(
@@ -55,18 +47,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (verification.otp !== otp) {
-      verification.attempts += 1;
-      await emailVerificationRepo.save(verification);
-      console.warn("[register:verify] Invalid OTP for", email, "attempts:", verification.attempts);
+      await prisma.emailVerification.update({ where: { email }, data: { attempts: { increment: 1 } } });
+      const updated = await prisma.emailVerification.findUnique({ where: { email } });
+      console.warn("[register:verify] Invalid OTP for", email, "attempts:", updated?.attempts);
       return NextResponse.json(
         { error: { code: "otp_invalid", message: "Invalid OTP" } },
         { status: 400 }
       );
     }
 
-    await emailVerificationRepo.delete({ id: verification.id });
+    await prisma.emailVerification.delete({ where: { email } });
 
-    const existingUser = await userRepository.findOne({ where: [{ email }, { phone }] });
+    const existingUser = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
     if (existingUser) {
       const conflictField = existingUser.email === email ? "email" : "phone";
       console.warn("[register:verify] Conflict on", conflictField, "for", email);
@@ -76,23 +68,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = userRepository.create({
-      firstName,
-      lastName,
-      phone,
-      email,
-      dateOfBirth: new Date(dateOfBirth),
-      password,
+    const bcrypt = await import("bcryptjs");
+    const hashed = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        phone,
+        email,
+        dateOfBirth: new Date(dateOfBirth),
+        password: hashed,
+      }
     });
-    await userRepository.save(user);
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
     const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    await refreshTokenRepository.save(
-      refreshTokenRepository.create({ token: refreshToken, user, expiresAt: refreshTokenExpiry })
-    );
+    await prisma.refreshToken.create({ data: { token: refreshToken, userId: user.id, expiresAt: refreshTokenExpiry } });
 
     const { password: _, ...userWithoutPassword } = user;
 
