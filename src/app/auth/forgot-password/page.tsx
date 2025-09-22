@@ -28,6 +28,7 @@ const ForgotPasswordPage: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
     watch
   } = useForm<ForgotPasswordFormData>();
 
@@ -51,7 +52,14 @@ const ForgotPasswordPage: React.FC = () => {
         setSentEmail(data.email);
         toast.success('OTP sent to your email!');
       } else {
-        toast.error(result.message || 'Failed to send OTP');
+        if (result?.error?.code === 'user_not_found') {
+          setError('email', { type: 'server', message: 'Email is not registered' });
+          toast.error('Email is not registered');
+        } else if (result?.message) {
+          toast.error(result.message);
+        } else {
+          toast.error('Failed to send OTP');
+        }
       }
     } catch (error) {
       toast.error('Something went wrong. Please try again.');

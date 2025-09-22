@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { message: 'If an account with that email exists, we\'ve sent a verification code.' },
-        { status: 200 }
+        { error: { code: 'user_not_found', message: 'Email is not registered' } },
+        { status: 404 }
       );
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { message: 'If an account with that email exists, we\'ve sent a verification code.' },
+      { message: 'Verification code sent to your email.' },
       { status: 200 }
     );
 

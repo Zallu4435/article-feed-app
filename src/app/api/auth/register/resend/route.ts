@@ -6,8 +6,8 @@ import { generateOtp, sendOtpEmail } from "@/lib/email";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
+const OTP_TTL_MS = 10 * 60 * 1000; 
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {

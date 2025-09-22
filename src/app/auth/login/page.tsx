@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -12,13 +12,15 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 
 const LoginPage: React.FC = () => {
-  const { login, loading } = useAuth();
+  const { login, loading, isAuthenticated } = useAuth();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isEmail, setIsEmail] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
 
   const {
     register,
@@ -39,11 +41,19 @@ const LoginPage: React.FC = () => {
     }
   }, [emailOrPhone]);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      setRedirecting(true);
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, router]);
+
   const onSubmit = async (data: LoginFormData) => {
     try {
       await login(data.emailOrPhone, data.password);
       toast.success('Login successful!');
-      router.push('/dashboard');
+      setRedirecting(true);
+      router.replace('/dashboard');
     } catch (error) {
       const err: any = error || {};
       if (err?.code === 'validation_error' && err?.details) {
@@ -70,6 +80,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {(loading || redirecting) && <LoadingSpinner overlay size={24} text="Loading…" />}
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>

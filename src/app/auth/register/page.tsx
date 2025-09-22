@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -24,13 +24,23 @@ import useSWR from 'swr';
 import { apiFetch } from '@/lib/api';
 
 import { registerSchema, type RegisterFormData } from '@/schemas/auth/register';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 const fetcher = (url: string) => apiFetch<{ categories: Array<{ id: string; name: string }> }>(url);
 
 const RegisterPage: React.FC = () => {
-  const { register: registerUser, loading, refreshProfile } = useAuth();
+  const { register: registerUser, loading, refreshProfile, isAuthenticated } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setRedirecting(true);
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, router]);
+  
   const [otp, setOtp] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -208,6 +218,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {(loading || redirecting) && <LoadingSpinner overlay size={24} text="Loading…" />}
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Create your account</h1>
