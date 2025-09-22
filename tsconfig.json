@@ -27,7 +27,8 @@
       
       "@/lib/*": ["./src/lib/*"],
       "@/middleware/*": ["./src/middleware/*"],
-      "@/types/*": ["./src/types/*"]
+      "@/types/*": ["./src/types/*"],
+      "@/generated/*": ["./src/generated/*"]
     }
   },
   "include": [
