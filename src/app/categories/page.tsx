@@ -12,7 +12,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function CategoriesPage() {
   const { data } = useSWR('/api/categories', fetcher);
-  const categories = (data?.categories ?? []) as { id: string; name: string }[];
+  const categories = (data?.data?.categories ?? []) as { id: string; name: string; description?: string }[];
   const [search, setSearch] = React.useState('');
   const filtered = React.useMemo(
     () => categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -66,7 +66,7 @@ export default function CategoriesPage() {
                 </div>
                 <div>
                   <CardTitle>{c.name}</CardTitle>
-                  <CardDescription>Articles curated in {c.name}</CardDescription>
+                  <CardDescription>{c.description || `Articles curated in ${c.name}`}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">

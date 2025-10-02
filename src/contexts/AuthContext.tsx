@@ -26,12 +26,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshProfile = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<{ user: User }>(`/api/users/profile`);
-      setUser(data.user);
+      const data = await apiFetch<{ data: { user: User } }>(`/api/users/profile`);
+      setUser(data.data.user);
     } catch {
       setUser(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...updates });
     }
   };
 
@@ -70,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const profileRes = await fetch('/api/users/profile', { credentials: 'include' });
       if (profileRes.ok) {
         const data = await profileRes.json();
-        setUser(data.user);
+        setUser(data.data.user);
       } else {
         setUser(null);
       }
@@ -101,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     isAuthenticated: !!user,
     refreshProfile,
+    updateUser,
   };
 
   return (

@@ -102,7 +102,7 @@ const ResetPasswordContent: React.FC = () => {
   if (isValidating) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <LoadingSpinner size={40} text="Validating access..." />
+        <LoadingSpinner size={40} text="Validating access..." overlay={true} preventScroll={true} backdrop="blur" />
       </div>
     );
   }
@@ -297,7 +297,7 @@ const ResetPasswordContent: React.FC = () => {
 
 const LoadingFallback: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-    <LoadingSpinner size={40} text="Loading..." />
+    <LoadingSpinner size={40} text="Loading..." overlay={true} preventScroll={true} backdrop="blur" />
   </div>
 );
 

@@ -7,7 +7,7 @@ export const useArticles = (params: { page?: number; limit?: number; categoryId?
   const { enabled, ...queryParams } = params;
   return useQuery({
     queryKey: ['articles', queryParams],
-    queryFn: () => apiFetch<{ articles: any[]; pagination: any }>(`/api/articles`, { query: queryParams }),
+    queryFn: () => apiFetch<{ data: any[]; meta: { pagination: any; timestamp: string } }>(`/api/articles`, { query: queryParams }),
     enabled: enabled !== undefined ? enabled : true,
   });
 };
@@ -15,7 +15,7 @@ export const useArticles = (params: { page?: number; limit?: number; categoryId?
 export const useArticle = (id?: string) => {
   return useQuery({
     queryKey: ['article', id],
-    queryFn: () => apiFetch<{ article: any }>(`/api/articles/${id}`),
+    queryFn: () => apiFetch<{ data: { article: any } }>(`/api/articles/${id}`),
     enabled: !!id,
   });
 };

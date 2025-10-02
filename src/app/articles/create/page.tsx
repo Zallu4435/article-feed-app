@@ -42,11 +42,11 @@ const CreateArticlePage: React.FC = () => {
       if (!finalImageUrl && maybeFile) {
         const fd = new FormData();
         fd.append('file', maybeFile);
-        const uploadData = await apiFetch<{ url: string }>('/api/upload', {
+        const uploadData = await apiFetch<{ data: { url: string } }>('/api/upload', {
           method: 'POST',
           body: fd,
         });
-        finalImageUrl = uploadData.url as string;
+        finalImageUrl = uploadData.data.url as string;
         setImageUrl(finalImageUrl);
       }
 
@@ -69,7 +69,7 @@ const CreateArticlePage: React.FC = () => {
   };
 
   const cats = useCategories();
-  const categoryOptions: Option[] = (cats.data?.categories || []).map((c: any) => ({ value: c.id, label: c.name }));
+  const categoryOptions: Option[] = (cats.data?.data?.categories || []).map((c: any) => ({ value: c.id, label: c.name }));
 
   return (
     <AuthGuard>

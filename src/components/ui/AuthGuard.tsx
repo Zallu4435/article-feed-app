@@ -18,7 +18,13 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children, fallback }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <LoadingSpinner size={32} text="Verifying access..." />
+        <LoadingSpinner 
+          size={32} 
+          text="Verifying access..." 
+          overlay={true}
+          preventScroll={true}
+          backdrop="blur"
+        />
       </div>
     );
   }

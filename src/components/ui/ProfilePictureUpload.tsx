@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,11 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentImageUrl || null);
   const [error, setError] = useState<string | null>(null);
+
+  // Update preview when currentImageUrl prop changes
+  useEffect(() => {
+    setPreview(currentImageUrl || null);
+  }, [currentImageUrl]);
 
   const sizeClasses = {
     sm: 'w-16 h-16',
@@ -43,18 +48,32 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
     setUploading(true);
 
     try {
-
+      // Create temporary preview URL
       const previewUrl = URL.createObjectURL(file);
       setPreview(previewUrl);
 
       const formData = new FormData();
       formData.append('file', file);
 
-      const data = await apiFetch<{ url: string }>(
+      const data = await apiFetch<{ 
+        data: { 
+          profilePictureUrl: string;
+          publicId: string;
+          width: number;
+          height: number;
+        }
+      }>(
         '/api/users/profile/upload',
         { method: 'POST', body: formData }
       );
-      onUploaded(data.url);
+      
+      // Clean up the temporary blob URL to prevent memory leaks
+      URL.revokeObjectURL(previewUrl);
+      
+      // Update preview with the final uploaded URL
+      const uploadedUrl = data.data.profilePictureUrl;
+      setPreview(uploadedUrl);
+      onUploaded(uploadedUrl);
       toast.success('Profile picture updated successfully!');
 
     } catch (err: any) {

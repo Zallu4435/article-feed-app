@@ -20,9 +20,9 @@ export default function ProfilePage() {
   const { data, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
   const qc = useQueryClient();
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, user: authUser, updateUser } = useAuth();
 
-  const user = data?.user;
+  const user = data?.data?.user;
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm({
     resolver: yupResolver(profileSchema),
@@ -63,25 +63,47 @@ export default function ProfilePage() {
           <div className="flex items-center gap-6">
             <div className="relative">
               <UserAvatar 
-                src={user?.profilePicture || undefined}
+                src={authUser?.profilePicture || user?.profilePicture || undefined}
                 name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim()} 
                 size={80}
               />
               <ProfilePictureUpload
-                currentImageUrl={user?.profilePicture}
+                currentImageUrl={authUser?.profilePicture || user?.profilePicture}
                 onUploaded={(url: string) => {
+
+                  updateUser({ profilePicture: url });
+                  
                   qc.setQueryData(['profile'], (oldData: any) => {
-                    if (!oldData?.user) return oldData;
-                    return { ...oldData, user: { ...oldData.user, profilePicture: url } };
+                    if (!oldData?.data?.user) return oldData;
+                    return { 
+                      ...oldData, 
+                      data: { 
+                        ...oldData.data, 
+                        user: { 
+                          ...oldData.data.user, 
+                          profilePicture: url 
+                        } 
+                      } 
+                    };
                   });
-                  refreshProfile().catch(() => {});
                 }}
                 onRemove={() => {
+
+                  updateUser({ profilePicture: null });
+                  
                   qc.setQueryData(['profile'], (oldData: any) => {
-                    if (!oldData?.user) return oldData;
-                    return { ...oldData, user: { ...oldData.user, profilePicture: null } };
+                    if (!oldData?.data?.user) return oldData;
+                    return { 
+                      ...oldData, 
+                      data: { 
+                        ...oldData.data, 
+                        user: { 
+                          ...oldData.data.user, 
+                          profilePicture: null 
+                        } 
+                      } 
+                    };
                   });
-                  refreshProfile().catch(() => {});
                 }}
                 size="sm"
                 showAsOverlay={true}
@@ -194,6 +216,7 @@ export default function ProfilePage() {
                   type="date"
                   label="Date of birth"
                   placeholder="YYYY-MM-DD"
+                  max={new Date().toISOString().split('T')[0]}
                   error={errors.dateOfBirth?.message}
                   leftIcon={<CalendarIcon className="w-5 h-5" />}
                   {...register('dateOfBirth')}

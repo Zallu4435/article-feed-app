@@ -16,7 +16,7 @@ import {
   ClockIcon,
   TagIcon,
 } from '@heroicons/react/24/outline';
-import { useInteract, like, dislike, bookmark, unbookmark } from '@/hooks/useInteractions';
+import { useInteract } from '@/hooks/useInteractions';
 import { AuthGuard } from '@/components/ui/AuthGuard';
 import ShareModal from '@/components/ui/ShareModal';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -36,7 +36,7 @@ const ArticleViewPage: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const { data } = useArticle(params.id);
-  const article = (data?.article as any) || null;
+  const article = (data?.data?.article as any) || null;
 
   useEffect(() => {
     if (article) {
@@ -74,35 +74,87 @@ const ArticleViewPage: React.FC = () => {
   if (!article) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size={48} text="Loading article..." />
+        <LoadingSpinner 
+          size={48} 
+          text="Loading article..." 
+          overlay={true}
+          preventScroll={true}
+          backdrop="blur"
+        />
       </div>
     );
   }
 
   const handleLike = () => {
+    const articleId = String(params.id);
     if (liked) {
       setLiked(false);
       setLikesCount(prev => Math.max(0, prev - 1));
-      interact.mutate(dislike(String(params.id)));
+      interact.mutate(
+        { articleId, type: 'unlike' },
+        {
+          onSuccess: (data: any) => {
+            setLikesCount(data.data?.newCount || 0);
+          },
+          onError: () => {
+            setLiked(true);
+            setLikesCount(prev => prev + 1);
+          }
+        }
+      );
     } else {
       setLiked(true);
       setLikesCount(prev => prev + 1);
       if (disliked) {
         setDisliked(false);
       }
-      interact.mutate(like(String(params.id)));
+      interact.mutate(
+        { articleId, type: 'like' },
+        {
+          onSuccess: (data: any) => {
+            setLikesCount(data.data?.newCount || 0);
+          },
+          onError: () => {
+            setLiked(false);
+            setLikesCount(prev => Math.max(0, prev - 1));
+          }
+        }
+      );
     }
   };
 
   const handleBookmark = () => {
+    const articleId = String(params.id);
     if (bookmarked) {
       setBookmarked(false);
       setBookmarksCount(prev => Math.max(0, prev - 1));
-      interact.mutate(unbookmark(String(params.id)));
+      interact.mutate(
+        { articleId, type: 'unbookmark' },
+        {
+          onSuccess: (data: any) => {
+            setBookmarksCount(data.data?.newCount || 0);
+          },
+          onError: () => {
+            setBookmarked(true);
+            setBookmarksCount(prev => prev + 1);
+          }
+        }
+      );
     } else {
       setBookmarked(true);
       setBookmarksCount(prev => prev + 1);
-      interact.mutate(bookmark(String(params.id)));
+      interact.mutate(
+        { articleId, type: 'bookmark' },
+        {
+          onSuccess: (data: any) => {
+            setBookmarksCount(data.data?.newCount || 0);
+          },
+          onError: () => {
+            setBookmarked(false);
+            setBookmarksCount(prev => Math.max(0, prev - 1));
+          }
+        }
+      );
     }
   };
 

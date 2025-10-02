@@ -36,12 +36,11 @@ const SettingsPage: React.FC = () => {
   const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {
-    if (prof.data?.user) {
-      const u: any = prof.data.user;
-      const prefCats = (u.preferences || []).map((p: any) => p.categoryId);
+    if (prefs.data?.data?.preferences) {
+      const prefCats = (prefs.data.data.preferences || []).map((p: any) => p.categoryId);
       setPreferred(prefCats);
     }
-  }, [prof.data]);
+  }, [prefs.data]);
 
   const {
     register: registerSecurity,
@@ -74,7 +73,7 @@ const SettingsPage: React.FC = () => {
   const confirmDelete = async () => {
     try {
       await delAccount.mutateAsync();
-      toast.success('Your account has been deleted');
+      toast.success('Account deleted successfully');
       window.location.href = '/auth/login';
     } catch (e: any) {
       toast.error(e?.message || 'Failed to delete account');
@@ -83,15 +82,17 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const selectAllCategories = () => setPreferred((cats.data?.categories || []).map((c: any) => c.id));
+  const selectAllCategories = () => setPreferred((cats.data?.data?.categories || []).map((c: any) => c.id));
   const clearAllCategories = () => setPreferred([]);
   const savePreferences = async () => {
     setSavingPrefs(true);
     try {
-      const current = new Set<string>((prof.data?.user?.preferences || []).map((p: any) => p.categoryId));
+      const current = new Set<string>((prefs.data?.data?.preferences || []).map((p: any) => p.categoryId));
       for (const c of preferred) if (!current.has(c)) await addPref.mutateAsync(c);
       for (const c of current) if (!preferred.includes(c)) await remPref.mutateAsync(c);
-      toast.success('Preferences updated');
+      toast.success('Preferences updated successfully');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to update preferences');
     } finally {
       setSavingPrefs(false);
     }
@@ -105,7 +106,7 @@ const SettingsPage: React.FC = () => {
     if (/[a-z]/.test(pwd)) s += 1;
     if (/\d/.test(pwd)) s += 1;
     if (/[^A-Za-z0-9]/.test(pwd)) s += 1;
-    return s; // 0..5
+    return s; 
   })();
 
   return (
@@ -153,7 +154,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(cats.data?.categories || []).map((c: any) => {
+                  {(cats.data?.data?.categories || []).map((c: any) => {
                     const id = c.id as string;
                     const active = preferred.includes(id);
                     return (
@@ -169,26 +170,6 @@ const SettingsPage: React.FC = () => {
                       </button>
                     );
                   })}
-                </div>
-              </div>
-
-              <div>
-                <span className="block text-sm font-medium text-gray-700 mb-3">Theme</span>
-                <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-                  <button
-                    type="button"
-                    onClick={() => (document.documentElement.classList.remove('dark'), localStorage.setItem('theme','light'))}
-                    className={`px-4 py-2 text-sm rounded-md transition ${theme === 'light' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
-                  >
-                    Light
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => (document.documentElement.classList.add('dark'), localStorage.setItem('theme','dark'))}
-                    className={`px-4 py-2 text-sm rounded-md transition ${theme === 'dark' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
-                  >
-                    Dark
-                  </button>
                 </div>
               </div>
 

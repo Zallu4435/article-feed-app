@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { initializeDatabase } from '@/lib/database';
-import prisma from '@/lib/prisma';
-import jwt from 'jsonwebtoken';
+import { NextRequest } from 'next/server';
+import { ensureDatabaseConnection } from '@/helpers/database';
+import { authenticateRequest, isValidUUID } from '@/helpers/auth';
+import { createSuccessResponse, createErrorResponse, withErrorHandling } from '@/helpers/response';
+import { ArticleService } from '@/services/article.service';
+import { HttpStatusCode, ErrorCode } from '@/constants/status-codes';
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from '@/constants/messages';
 import { v2 as cloudinary } from 'cloudinary';
+import prisma from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,10 +16,6 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-function isUuid(id: string): boolean {
-  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(id);
-}
 
 function getCloudinaryPublicIdFromUrl(url: string): string | null {
   try {
@@ -34,63 +34,76 @@ function getCloudinaryPublicIdFromUrl(url: string): string | null {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) token = auth.split(' ')[1];
-    else token = request.cookies.get('access_token')?.value;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    const userId = decoded?.userId;
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const body = await request.json();
-    const ids = (body?.ids as string[])?.filter((v) => typeof v === 'string') ?? [];
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: { code: 'validation_error', message: 'ids must be a non-empty string array' } },
-        { status: 400 }
-      );
-    }
-    const validIds = ids.filter(isUuid);
-    if (validIds.length === 0) {
-      return NextResponse.json(
-        { error: { code: 'validation_error', message: 'No valid UUIDs provided' } },
-        { status: 400 }
-      );
-    }
-
-    const articles = await prisma.article.findMany({
-      where: { authorId: userId, id: { in: validIds } },
-      select: { id: true, imageUrl: true }
-    });
-
-    if (articles.length === 0) {
-      return NextResponse.json({ deleted: 0, message: 'No articles found or you lack permission' });
-    }
-
-    await Promise.all(
-      articles.map(async (a) => {
-        const img = a.imageUrl as string | undefined;
-        if (!img) return;
-        const publicId = getCloudinaryPublicIdFromUrl(img);
-        if (!publicId) return;
-        try {
-          await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
-        } catch {}
-      })
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
-
-    await prisma.article.deleteMany({ where: { id: { in: articles.map((a) => a.id) } } });
-
-    return NextResponse.json({ deleted: articles.length });
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+
+  const body = await request.json();
+  const ids = (body?.ids as string[])?.filter((v) => typeof v === 'string') ?? [];
+  
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      'Article IDs must be provided as a non-empty array',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const validIds = ids.filter(isValidUUID);
+  if (validIds.length === 0) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      'No valid article IDs provided',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const articles = await prisma.article.findMany({
+    where: { authorId: authResult.userId, id: { in: validIds } },
+    select: { id: true, imageUrl: true }
+  });
+
+  if (articles.length === 0) {
+    return createSuccessResponse({ deletedCount: 0 }, {
+      message: 'No articles found or you lack permission to delete them'
+    });
+  }
+
+  await Promise.all(
+    articles.map(async (article) => {
+      if (article.imageUrl) {
+        const publicId = getCloudinaryPublicIdFromUrl(article.imageUrl);
+        if (publicId) {
+          await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+        }
+      }
+    })
+  );
+
+  const result = await ArticleService.bulkDeleteArticles(
+    articles.map(a => a.id),
+    authResult.userId!
+  );
+
+  if (!result.success) {
+    return createErrorResponse(
+      ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode: HttpStatusCode.INTERNAL_SERVER_ERROR }
+    );
+  }
+
+  return createSuccessResponse({ deletedCount: result.deletedCount }, {
+    message: SUCCESS_MESSAGES.ARTICLES_BULK_DELETED,
+  });
+});
 
 

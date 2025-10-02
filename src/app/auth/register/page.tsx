@@ -26,20 +26,21 @@ import { apiFetch } from '@/lib/api';
 import { registerSchema, type RegisterFormData } from '@/schemas/auth/register';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
-const fetcher = (url: string) => apiFetch<{ categories: Array<{ id: string; name: string }> }>(url);
+const fetcher = (url: string) => apiFetch<{ data: { categories: Array<{ id: string; name: string }> } }>(url);
 
 const RegisterPage: React.FC = () => {
   const { register: registerUser, loading, refreshProfile, isAuthenticated } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [redirecting, setRedirecting] = useState(false);
+  const [isRegistrationFlow, setIsRegistrationFlow] = useState(true);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isRegistrationFlow) {
       setRedirecting(true);
       router.replace('/dashboard');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, isRegistrationFlow, step]);
   
   const [otp, setOtp] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -48,8 +49,13 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const { data: categoriesData } = useSWR('/api/categories', fetcher);
-  const categories = (categoriesData?.categories ?? []) as { id: string; name: string }[];
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [isCompletingRegistration, setIsCompletingRegistration] = useState(false);
+  const { data: categoriesData, error: categoriesError } = useSWR('/api/categories', fetcher);
+  const categories = (categoriesData?.data?.categories ?? []) as { id: string; name: string }[];
 
   const {
     register,
@@ -61,7 +67,6 @@ const RegisterPage: React.FC = () => {
     resolver: yupResolver(registerSchema),
   });
 
-  const watchedPassword = watch('password');
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategories(prev => 
@@ -72,8 +77,8 @@ const RegisterPage: React.FC = () => {
   };
 
   const initiateRegistration = async (data: RegisterFormData) => {
+    setIsSubmitting(true);
     try {
-      // call initiate endpoint to send OTP
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,7 +99,6 @@ const RegisterPage: React.FC = () => {
       setPendingForm(data);
       setStep(2);
       toast.success('Verification code sent to your email');
-      // start resend cooldown
       setResendCooldown(60);
     } catch (error) {
       const err: any = error || {};
@@ -107,16 +111,17 @@ const RegisterPage: React.FC = () => {
         return;
       }
       if (err?.code === 'conflict' && err?.details) {
-        if (err.details.email) setError('email', { type: 'server', message: 'Email already in use' });
-        if (err.details.phone) setError('phone', { type: 'server', message: 'Phone already in use' });
-        toast.error(err.message || 'Email or phone already exists');
+        if (err.details.email) setError('email', { type: 'server', message: err.details.email });
+        if (err.details.phone) setError('phone', { type: 'server', message: err.details.phone });
+        toast.error(err.message || 'An account with this email or phone already exists');
         return;
       }
-      toast.error(err?.message || 'Failed to send OTP');
+      toast.error(err?.message || 'Failed to send verification code');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // cooldown timer
   React.useEffect(() => {
     if (!resendCooldown) return;
     const id = setInterval(() => setResendCooldown((s) => (s > 0 ? s - 1 : 0)), 1000);
@@ -125,6 +130,7 @@ const RegisterPage: React.FC = () => {
 
   const resendOtp = async () => {
     if (!pendingForm?.email) return;
+    setIsResending(true);
     try {
       const res = await fetch('/api/auth/register/resend', {
         method: 'POST',
@@ -142,10 +148,13 @@ const RegisterPage: React.FC = () => {
       setResendCooldown(60);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to resend code');
+    } finally {
+      setIsResending(false);
     }
   };
 
   const verifyAndRegister = async () => {
+    setIsVerifying(true);
     try {
       if (!pendingForm) return;
       const res = await fetch('/api/auth/register/verify', {
@@ -169,11 +178,12 @@ const RegisterPage: React.FC = () => {
         throw (payload?.error ?? { code: 'unknown_error', message: 'Verification failed' });
       }
       const verified = await res.json().catch(() => ({}));
-      // User is created and cookies set by verify API; refresh profile and move to preferences step
-      await refreshProfile();
+
       setStep(3);
       setOtpError(null);
       toast.success('Email verified. Choose your preferences.');
+
+      await refreshProfile();
     } catch (error) {
       const err: any = error || {};
       if (err?.code === 'validation_error' && err?.details) {
@@ -191,10 +201,13 @@ const RegisterPage: React.FC = () => {
         return;
       }
       toast.error(err?.message || 'Verification failed');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const completeRegistration = async () => {
+    setIsCompletingRegistration(true);
     try {
       if (selectedCategories.length) {
         await Promise.all(
@@ -207,9 +220,12 @@ const RegisterPage: React.FC = () => {
         );
       }
       toast.success('Registration successful!');
+      setIsRegistrationFlow(false);
       router.push('/dashboard');
     } catch (err) {
       toast.error('Failed to save preferences');
+    } finally {
+      setIsCompletingRegistration(false);
     }
   };
 
@@ -218,7 +234,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      {(loading || redirecting) && <LoadingSpinner overlay size={24} text="Loading…" />}
+      {((loading && !isRegistrationFlow) || redirecting) && <LoadingSpinner overlay size={24} text="Loading…" preventScroll={true} backdrop="blur" />}
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Create your account</h1>
@@ -227,7 +243,6 @@ const RegisterPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full">
           <div className="flex items-center justify-between mb-4">
             <span className={`text-sm font-medium ${step >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>Personal Info</span>
@@ -245,11 +260,13 @@ const RegisterPage: React.FC = () => {
         <Card className="shadow-xl">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">
-              {step === 1 ? 'Personal Information' : 'Category Preferences'}
+              {step === 1 ? 'Personal Information' : step === 2 ? 'Verify Your Email' : 'Category Preferences'}
             </CardTitle>
             <CardDescription className="text-center">
               {step === 1 
                 ? 'Tell us about yourself' 
+                : step === 2 
+                ? 'Check your email for the verification code'
                 : 'Choose topics that interest you'
               }
             </CardDescription>
@@ -295,6 +312,7 @@ const RegisterPage: React.FC = () => {
                 <Input
                   label="Date of Birth"
                   type="date"
+                  max={new Date().toISOString().split('T')[0]}
                   leftIcon={<CalendarIcon className="h-5 w-5" />}
                   error={errors.dateOfBirth?.message}
                   {...register('dateOfBirth')}
@@ -333,8 +351,8 @@ const RegisterPage: React.FC = () => {
                   />
                 </div>
 
-                <Button type="submit" className="w-full" size="lg" variant="default">
-                  Send Verification Code
+                <Button type="submit" className="w-full" size="lg" variant="default" loading={isSubmitting}>
+                  {isSubmitting ? 'Sending Code...' : 'Send Verification Code'}
                 </Button>
               </form>
             ) : step === 2 ? (
@@ -354,20 +372,24 @@ const RegisterPage: React.FC = () => {
                     type="button"
                     className={`text-blue-600 hover:underline disabled:text-gray-400`}
                     onClick={resendOtp}
-                    disabled={resendCooldown > 0}
+                    disabled={resendCooldown > 0 || isResending}
                   >
-                    Resend code {resendCooldown > 0 ? `(${resendCooldown}s)` : ''}
+                    {isResending ? 'Sending...' : `Resend code ${resendCooldown > 0 ? `(${resendCooldown}s)` : ''}`}
                   </button>
                 </div>
                 <div className="flex space-x-4">
                   <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">Back</Button>
-                  <Button type="button" onClick={verifyAndRegister} className="flex-1" loading={loading} variant="default" size="lg">
-                    Verify Email
+                  <Button type="button" onClick={verifyAndRegister} className="flex-1" loading={isVerifying} variant="default" size="lg">
+                    {isVerifying ? 'Verifying...' : 'Verify Email'}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-6">
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-medium text-gray-900">Choose Your Interests</h3>
+                  <p className="text-sm text-gray-600">Select categories that interest you to get personalized content recommendations. You can skip this step and set preferences later.</p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {categories.map((category) => (
                     <div
@@ -400,8 +422,8 @@ const RegisterPage: React.FC = () => {
                   >
                     Back
                   </Button>
-                  <Button type="button" onClick={completeRegistration} className="flex-1" loading={loading} disabled={selectedCategories.length === 0} variant="default" size="lg">
-                    Complete Registration
+                  <Button type="button" onClick={completeRegistration} className="flex-1" loading={isCompletingRegistration} variant="default" size="lg">
+                    {isCompletingRegistration ? 'Completing...' : selectedCategories.length === 0 ? 'Skip Preferences' : 'Complete Registration'}
                   </Button>
                 </div>
               </div>

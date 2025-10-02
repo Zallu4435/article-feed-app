@@ -25,7 +25,7 @@ const EditArticlePage: React.FC = () => {
   const updateArticle = useUpdateArticle();
   const [initial, setInitial] = useState<any | null>(null);
   const cats = useCategories();
-  const categoryOptions: Option[] = (cats.data?.categories || []).map((c: any) => ({ value: c.id, label: c.name }));
+  const categoryOptions: Option[] = (cats.data?.data?.categories || []).map((c: any) => ({ value: c.id, label: c.name }));
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
@@ -36,8 +36,8 @@ const EditArticlePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!data?.article) return;
-    const a = data.article as any;
+    if (!data?.data?.article) return;
+    const a = data.data.article as any;
     setInitial(a);
     setTitle(a.title || '');
     setDescription(a.description || '');
@@ -78,11 +78,11 @@ const EditArticlePage: React.FC = () => {
       if (pendingFile) {
         const fd = new FormData();
         fd.append('file', pendingFile);
-        const uploadData = await apiFetch<{ url: string }>(
+        const uploadData = await apiFetch<{ data: { url: string } }>(
           '/api/upload',
           { method: 'POST', body: fd }
         );
-        finalImageUrl = uploadData.url as string;
+        finalImageUrl = uploadData.data.url as string;
         setImageUrl(finalImageUrl);
       }
       await updateArticle.mutateAsync({ id: String(params.id), payload: {
@@ -105,7 +105,7 @@ const EditArticlePage: React.FC = () => {
   if (!initial) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size={32} text="Loading article..." />
+        <LoadingSpinner size={32} text="Loading article..." overlay={true} preventScroll={true} backdrop="blur" />
       </div>
     );
   }

@@ -1,145 +1,147 @@
-import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
+import { NextRequest } from "next/server";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { authenticateRequest, isValidUUID } from "@/helpers/auth";
+import { createSuccessResponse, createErrorResponse, withErrorHandling } from "@/helpers/response";
+import { UserService } from "@/services/user.service";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  try {
-    await initializeDatabase();
-
-    const cookieToken = request.cookies.get('access_token')?.value;
-    const auth = request.headers.get('authorization');
-    const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
-    const token = cookieToken || headerToken;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    const userId = decoded?.userId;
-
-    const preferences = await prisma.userPreference.findMany({
-      where: { userId },
-      include: { category: true }
-    });
-
-    return NextResponse.json({ preferences });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    const body = await request.json();
-    const { categoryId } = body as { categoryId?: string };
-    const cookieToken = request.cookies.get('access_token')?.value;
-    const auth = request.headers.get('authorization');
-    const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
-    const token = cookieToken || headerToken;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    const userId = decoded?.userId;
+  const result = await UserService.getUserPreferences(authResult.userId!);
 
-    if (!categoryId) {
-      return NextResponse.json(
-        { error: "Category ID is required" },
-        { status: 400 }
-      );
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    let resolvedCategoryId: string | null = null;
-    if (uuidRegex.test(String(categoryId))) {
-      resolvedCategoryId = String(categoryId);
-    } else {
-      const cat = await prisma.category.findUnique({ where: { name: String(categoryId) } });
-      if (!cat) {
-        return NextResponse.json({ error: "Category not found" }, { status: 404 });
-      }
-      resolvedCategoryId = cat.id;
-    }
-
-    const existingPreference = await prisma.userPreference.findFirst({ where: { userId, categoryId: resolvedCategoryId } });
-
-    if (existingPreference) {
-      return NextResponse.json(
-        { error: "Preference already exists" },
-        { status: 409 }
-      );
-    }
-
-    const preference = await prisma.userPreference.create({ data: { userId, categoryId: resolvedCategoryId } });
-
-    return NextResponse.json({
-      message: "Preference added successfully",
-      preference
-    }, { status: 201 });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  if (!result.success) {
+    return createErrorResponse(
+      ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode: HttpStatusCode.INTERNAL_SERVER_ERROR }
     );
   }
-}
 
-export async function DELETE(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    const { searchParams } = new URL(request.url);
-    const categoryId = searchParams.get("categoryId");
+  return createSuccessResponse({ preferences: result.preferences });
+});
 
-    const cookieToken = request.cookies.get('access_token')?.value;
-    const auth = request.headers.get('authorization');
-    const headerToken = auth?.startsWith('Bearer ')? auth.slice('Bearer '.length) : undefined;
-    const token = cookieToken || headerToken;
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    const userId = decoded?.userId;
-
-    if (!categoryId) {
-      return NextResponse.json(
-        { error: "Category ID is required" },
-        { status: 400 }
-      );
-    }
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    let resolvedCategoryId: string | null = null;
-    if (uuidRegex.test(String(categoryId))) {
-      resolvedCategoryId = String(categoryId);
-    } else {
-      const cat = await prisma.category.findUnique({ where: { name: String(categoryId) } });
-      if (!cat) {
-        return NextResponse.json({ error: "Category not found" }, { status: 404 });
-      }
-      resolvedCategoryId = cat.id;
-    }
-
-    const preference = await prisma.userPreference.findFirst({ where: { userId, categoryId: resolvedCategoryId } });
-
-    if (!preference) {
-      return NextResponse.json(
-        { error: "Preference not found" },
-        { status: 404 }
-      );
-    }
-
-    await prisma.userPreference.delete({ where: { id: preference.id } });
-
-    return NextResponse.json({
-      message: "Preference removed successfully"
-    });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
+
+  const body = await request.json();
+  const { categoryId } = body;
+
+  if (!categoryId) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      'Category ID is required',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  let resolvedCategoryId: string;
+  if (isValidUUID(categoryId)) {
+    resolvedCategoryId = categoryId;
+  } else {
+    const category = await prisma.category.findUnique({ where: { name: categoryId } });
+    if (!category) {
+      return createErrorResponse(
+        ErrorCode.NOT_FOUND,
+        'Category not found',
+        { statusCode: HttpStatusCode.NOT_FOUND }
+      );
+    }
+    resolvedCategoryId = category.id;
+  }
+
+  const result = await UserService.addUserPreference(authResult.userId!, resolvedCategoryId);
+
+  if (!result.success) {
+    const statusCode = result.error?.includes('already exists') 
+      ? HttpStatusCode.CONFLICT 
+      : HttpStatusCode.INTERNAL_SERVER_ERROR;
+    
+    return createErrorResponse(
+      result.error?.includes('already exists') ? ErrorCode.ALREADY_EXISTS : ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode }
+    );
+  }
+
+  return createSuccessResponse(result.preference, {
+    message: SUCCESS_MESSAGES.PREFERENCES_UPDATED,
+    statusCode: HttpStatusCode.CREATED,
+  });
+});
+
+export const DELETE = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const categoryId = searchParams.get("categoryId");
+
+  if (!categoryId) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      'Category ID is required',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  let resolvedCategoryId: string;
+  if (isValidUUID(categoryId)) {
+    resolvedCategoryId = categoryId;
+  } else {
+    const category = await prisma.category.findUnique({ where: { name: categoryId } });
+    if (!category) {
+      return createErrorResponse(
+        ErrorCode.NOT_FOUND,
+        'Category not found',
+        { statusCode: HttpStatusCode.NOT_FOUND }
+      );
+    }
+    resolvedCategoryId = category.id;
+  }
+
+  const result = await UserService.removeUserPreference(authResult.userId!, resolvedCategoryId);
+
+  if (!result.success) {
+    return createErrorResponse(
+      ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode: HttpStatusCode.INTERNAL_SERVER_ERROR }
+    );
+  }
+
+  return createSuccessResponse(null, {
+    message: SUCCESS_MESSAGES.PREFERENCES_UPDATED,
+  });
+});

@@ -1,42 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
+import { NextRequest } from "next/server";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { createSuccessResponse, createErrorResponse, createValidationErrorResponse, withErrorHandling } from "@/helpers/response";
+import { validateRegistrationData } from "@/helpers/validation";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { generateOtp, sendOtpEmail } from "@/lib/email";
+import { UserService } from "@/services/user.service";
+import prisma from "@/lib/prisma";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import prisma from "@/lib/prisma";
-import { generateOtp, sendOtpEmail } from "@/lib/email";
 
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    const body = await request.json();
-    const { firstName, lastName, phone, email, dateOfBirth, password } = body ?? {};
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const body = await request.json();
+  const { firstName, lastName, phone, email, dateOfBirth, password } = body ?? {};
 
-    const fieldErrors: Record<string, string> = {};
-    if (!firstName) fieldErrors.firstName = "First name is required";
-    if (!lastName) fieldErrors.lastName = "Last name is required";
-    if (!phone) fieldErrors.phone = "Phone is required";
-    if (!email) fieldErrors.email = "Email is required";
-    else if (!/^\S+@\S+\.\S+$/.test(email)) fieldErrors.email = "Email is invalid";
-    if (!dateOfBirth) fieldErrors.dateOfBirth = "Date of birth is required";
-    if (!password) fieldErrors.password = "Password is required";
-    else if (password.length < 8) fieldErrors.password = "Password must be at least 8 characters";
-    if (Object.keys(fieldErrors).length > 0) {
-      return NextResponse.json(
-        { error: { code: "validation_error", message: "Invalid request body", details: fieldErrors } },
-        { status: 400 }
-      );
-    }
+  const validation = validateRegistrationData({
+    firstName,
+    lastName,
+    phone,
+    email,
+    dateOfBirth,
+    password,
+  });
 
-    const existingUser = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
+  if (!validation.isValid) {
+    const validationDetails: Record<string, string> = {};
+    validation.errors.forEach(error => {
+      validationDetails[error.field] = error.message;
+    });
 
-    if (existingUser) {
-      const conflictField = existingUser.email === email ? "email" : "phone";
-      console.warn("[register:initiate] Conflict on", conflictField, "for email:", email, "phone:", phone);
-      return NextResponse.json(
-        { error: { code: "conflict", message: `User with this ${conflictField} already exists`, details: { [conflictField]: "Already in use" } } },
-        { status: 409 }
-      );
-    }
+    return createValidationErrorResponse(
+      validationDetails,
+      ERROR_MESSAGES.REGISTRATION_FAILED
+    );
+  }
+
+  const existingCheck = await UserService.checkExistingUser(email, phone);
+  
+  if (existingCheck.exists) {
+    return createErrorResponse(
+      ErrorCode.CONFLICT,
+      'Account already exists with this email or phone',
+      {
+        statusCode: HttpStatusCode.CONFLICT,
+        details: existingCheck.conflicts,
+      }
+    );
+  }
 
     const otp = generateOtp(6);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
@@ -48,22 +61,9 @@ export async function POST(request: NextRequest) {
       await prisma.emailVerification.create({ data: { email, otp, expiresAt } });
     }
 
-    try {
-      await sendOtpEmail(email, otp);
-    } catch (e) {
-      console.error("[register:initiate] Failed to send OTP email:", (e as Error)?.message);
-      return NextResponse.json(
-        { error: { code: "email_failed", message: "Failed to send verification email" } },
-        { status: 500 }
-      );
-    }
+    await sendOtpEmail(email, otp);
 
-    return NextResponse.json({ message: "OTP sent to email" }, { status: 200 });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: { code: "server_error", message: "Internal server error" } },
-      { status: 500 }
-    );
-  }
-}
+    return createSuccessResponse(null, {
+      message: SUCCESS_MESSAGES.OTP_SENT,
+    });
+});

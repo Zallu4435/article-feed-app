@@ -1,3 +1,5 @@
+import type { User } from '@/generated/prisma';
+
 export interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
@@ -6,6 +8,7 @@ export interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   refreshProfile: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 export interface RegisterData {
@@ -25,6 +28,3 @@ export interface ResetPasswordFormData {
   password: string;
   confirmPassword: string;
 }
-
-
-import type { User } from '@/generated/prisma';

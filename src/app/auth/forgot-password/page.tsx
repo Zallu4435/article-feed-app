@@ -52,17 +52,25 @@ const ForgotPasswordPage: React.FC = () => {
         setSentEmail(data.email);
         toast.success('OTP sent to your email!');
       } else {
-        if (result?.error?.code === 'user_not_found') {
-          setError('email', { type: 'server', message: 'Email is not registered' });
-          toast.error('Email is not registered');
-        } else if (result?.message) {
-          toast.error(result.message);
+        const errorCode = result?.error?.code;
+        const errorMessage = result?.error?.message || result?.message;
+        
+        if (errorCode === 'user_not_found') {
+          setError('email', { type: 'server', message: 'This email is not registered' });
+          toast.error('This email is not registered');
+        } else if (errorCode === 'validation_error') {
+          setError('email', { type: 'server', message: 'Please enter a valid email address' });
+          toast.error('Please enter a valid email address');
+        } else if (errorMessage) {
+          toast.error(errorMessage);
         } else {
-          toast.error('Failed to send OTP');
+          toast.error('Failed to send reset code. Please try again.');
         }
       }
     } catch (error) {
-      toast.error('Something went wrong. Please try again.');
+      console.error('Forgot password error:', error);
+      setError('email', { type: 'server', message: 'Network error. Please check your connection.' });
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }

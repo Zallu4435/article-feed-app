@@ -1,86 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { createErrorResponse, createValidationErrorResponse, withErrorHandling } from "@/helpers/response";
+import { UserService } from "@/services/user.service";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import prisma from "@/lib/prisma";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-import { generateAccessToken, generateRefreshToken } from "@/lib/jwt";
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { email, password } = body ?? {};
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const body = await request.json();
+  const { email, password } = body ?? {};
 
-    const fieldErrors: Record<string, string> = {};
-    if (!email) fieldErrors.email = "Email is required";
-    else if (!/^\S+@\S+\.\S+$/.test(email)) fieldErrors.email = "Email is invalid";
-    if (!password) fieldErrors.password = "Password is required";
-    if (Object.keys(fieldErrors).length > 0) {
-      return NextResponse.json(
-        { error: { code: "validation_error", message: "Invalid request body", details: fieldErrors } },
-        { status: 400 }
-      );
-    }
+  const fieldErrors: Record<string, string> = {};
+  if (!email) fieldErrors.email = "Email is required";
+  else if (!/^\S+@\S+\.\S+$/.test(email)) fieldErrors.email = "Email is invalid";
+  if (!password) fieldErrors.password = "Password is required";
+  
+  if (Object.keys(fieldErrors).length > 0) {
+    return createValidationErrorResponse(fieldErrors, ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
 
-    await initializeDatabase();
+  const result = await UserService.loginUser({ emailOrPhone: email, password });
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return NextResponse.json(
-        { error: { code: "user_not_found", message: "No account found for this email" } },
-        { status: 404 }
-      );
-    }
-
-    const bcrypt = await import("bcryptjs");
-    const isValidPassword = await bcrypt.compare(password, user.password);
-
-    if (!isValidPassword) {
-      return NextResponse.json(
-        { error: { code: "invalid_password", message: "Password is incorrect" } },
-        { status: 401 }
-      );
-    }
-
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
- 
-    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); 
-
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: refreshTokenExpiry,
+  if (!result.success) {
+    return createErrorResponse(
+      result.error!.code,
+      result.error!.message,
+      {
+        statusCode: result.error!.code === ErrorCode.USER_NOT_FOUND 
+          ? HttpStatusCode.NOT_FOUND 
+          : HttpStatusCode.UNAUTHORIZED,
       }
-    });
-
-    const { password: _, ...userWithoutPassword } = user;
-
-    const response = NextResponse.json({
-      message: "Login successful",
-      user: userWithoutPassword,
-    });
-    response.cookies.set("access_token", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 15 * 60, 
-      path: "/",
-    });
-    response.cookies.set("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, 
-      path: "/",
-    });
-
-    return response;
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
     );
   }
-}
+
+  const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({
+    data: {
+      token: result.refreshToken!,
+      userId: result.user!.id,
+      expiresAt: refreshTokenExpiry,
+    }
+  });
+
+  const response = NextResponse.json({
+    success: true,
+    data: {
+      user: result.user,
+    },
+    message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+  });
+
+  response.cookies.set("access_token", result.accessToken!, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 15 * 60,
+    path: "/",
+  });
+  
+  response.cookies.set("refresh_token", result.refreshToken!, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60,
+    path: "/",
+  });
+
+  return response;
+});

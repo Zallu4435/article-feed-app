@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LoadingSpinnerProps } from '@/types/ui';
 import { cn } from '@/lib/utils';
+import { useScrollLock } from '@/hooks/useScrollLock';
 
 const sizeMap: Record<number, string> = {
   12: 'h-3 w-3',
@@ -12,12 +13,32 @@ const sizeMap: Record<number, string> = {
 };
 
 const nearestSizeClass = (size: number) => {
-  const keys = Object.keys(sizeMap).map(Number).sort((a, b) => Math.abs(a - size) - Math.abs(b - a));
+  const keys = Object.keys(sizeMap).map(Number).sort((a, b) => Math.abs(a - size) - Math.abs(b - size));
   return sizeMap[keys[0]];
 };
 
-const LoadingSpinner: React.FC<LoadingSpinnerProps & { center?: boolean; overlay?: boolean; className?: string }> = ({ size = 24, text, center = true, overlay = false, className }) => {
+const LoadingSpinner: React.FC<LoadingSpinnerProps & { 
+  center?: boolean; 
+  overlay?: boolean; 
+  className?: string;
+  preventScroll?: boolean;
+  backdrop?: 'light' | 'dark' | 'blur';
+}> = ({ 
+  size = 24, 
+  text, 
+  center = true, 
+  overlay = false, 
+  className,
+  preventScroll = false,
+  backdrop = 'light'
+}) => {
   const dimClass = nearestSizeClass(size);
+
+  // Use scroll lock hook to prevent scrolling when overlay is shown
+  useScrollLock({ 
+    isLocked: overlay && preventScroll,
+    lockClass: 'loading-overlay-active'
+  });
 
   const spinner = (
     <div className={cn('inline-flex items-center space-x-2', center && 'justify-center', className)}>
@@ -44,15 +65,38 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps & { center?: boolean; overlay
           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
         />
       </svg>
-      {text && <span className="text-sm text-gray-600">{text}</span>}
+      {text && <span className="text-sm text-gray-600 font-medium">{text}</span>}
     </div>
   );
 
   if (!overlay) return spinner;
 
+  // Different backdrop styles
+  const getBackdropClass = () => {
+    switch (backdrop) {
+      case 'dark':
+        return 'bg-black/50';
+      case 'blur':
+        return 'bg-white/80 backdrop-blur-sm';
+      default:
+        return 'bg-white/70';
+    }
+  };
+
   return (
-    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-white/60">
-      {spinner}
+    <div 
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center',
+        getBackdropClass(),
+        preventScroll ? 'pointer-events-auto' : 'pointer-events-none'
+      )}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Loading"
+    >
+      <div className="pointer-events-none">
+        {spinner}
+      </div>
     </div>
   );
 };

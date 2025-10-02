@@ -19,3 +19,15 @@ body {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+.loading-overlay-active {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.loading-overlay-active {
+  touch-action: none;
+  -webkit-overflow-scrolling: auto;
+}

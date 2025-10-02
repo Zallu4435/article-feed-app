@@ -4,7 +4,7 @@ import { apiFetch } from '@/lib/api';
 export const useProfile = () => {
   return useQuery({
     queryKey: ['profile'],
-    queryFn: () => apiFetch<{ user: any }>(`/api/users/profile`),
+    queryFn: () => apiFetch<{ data: { user: any } }>(`/api/users/profile`),
   });
 };
 
@@ -20,7 +20,7 @@ export const useUpdateProfile = () => {
 export const usePreferences = () => {
   return useQuery({
     queryKey: ['preferences'],
-    queryFn: () => apiFetch<{ preferences: any[] }>(`/api/users/preferences`),
+    queryFn: () => apiFetch<{ data: { preferences: any[] } }>(`/api/users/preferences`),
   });
 };
 
@@ -43,7 +43,7 @@ export const useRemovePreference = () => {
 export const useCategories = () => {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: () => apiFetch<{ categories: any[] }>(`/api/categories`),
+    queryFn: () => apiFetch<{ data: { categories: any[] } }>(`/api/categories`),
   });
 };
 

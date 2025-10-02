@@ -43,17 +43,16 @@ const ListMyArticlesContent: React.FC = () => {
   const [categoryId, setCategoryId] = useState<string>('all');
   const categoryOptions: Option[] = React.useMemo(() => {
     const base: Option[] = [{ value: 'all', label: 'All' }];
-    const fromApi = (cats.data?.categories || []).map((c: any) => ({ value: c.id as string, label: c.name as string }));
+    const fromApi = (cats.data?.data?.categories || []).map((c: any) => ({ value: c.id as string, label: c.name as string }));
     return [...base, ...fromApi];
   }, [cats.data]);
 
   const ownerParam = searchParams.get('owner') === 'all' ? 'all' : undefined;
   const articlesQuery = useArticles({ page, limit: pageSize, search: debouncedSearch || undefined, categoryId: categoryId === 'all' ? undefined : categoryId, excludeBlocked: false, owner: ownerParam });
-  const articles = articlesQuery.data?.articles || [];
-  const totalPages = Math.max(1, Number(articlesQuery.data?.pagination?.totalPages || 1));
+  const articles = articlesQuery.data?.data || [];
+  const totalPages = Math.max(1, Number(articlesQuery.data?.meta?.pagination?.totalPages || 1));
   const isLoading = articlesQuery.isLoading;
 
-  // Initialize from URL ?search= on first load and when URL changes
   useEffect(() => {
     const q = (searchParams.get('search') || '').trim();
     setSearch(q);
@@ -98,7 +97,7 @@ const ListMyArticlesContent: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Articles</h1>
             <p className="text-sm text-gray-600 mt-1">
-              {articlesQuery.data?.pagination?.total || 0} total • {selected.length} selected
+              {articlesQuery.data?.meta?.pagination?.total || 0} total • {selected.length} selected
             </p>
           </div>
           <Link href="/articles/create">
@@ -310,13 +309,13 @@ const ListMyArticlesContent: React.FC = () => {
               if (confirm.mode === 'unblock' && confirm.id) interact.mutate(unblockAction(confirm.id));
               if (confirm.mode === 'delete' && confirm.id) deleteArticle.mutate(confirm.id);
               if (confirm.mode === 'deleteMany' && confirm.ids && confirm.ids.length) {
-                apiFetch<{ deleted: number }>(
+                apiFetch<{ data: { deleted: number } }>(
                   '/api/articles/bulk-delete',
                   { method: 'POST', body: { ids: confirm.ids } }
                 )
                   .then((res) => {
                     setSelected([]);
-                    toast.success(`${res.deleted} article(s) deleted`);
+                    toast.success(`${res.data.deleted} article(s) deleted`);
                   })
                   .catch((err) => {
                     toast.error(err?.message || 'Failed to delete selected articles');

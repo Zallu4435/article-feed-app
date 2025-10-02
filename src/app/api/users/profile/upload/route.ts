@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { authenticateRequest } from "@/helpers/auth";
+import { validateFileType, validateFileSize } from "@/helpers/validation";
+import { createSuccessResponse, createErrorResponse, withErrorHandling } from "@/helpers/response";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import { v2 as cloudinary } from "cloudinary";
-import jwt from "jsonwebtoken";
-import { initializeDatabase } from "@/lib/database";
 import prisma from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -13,103 +17,105 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) {
-      token = auth.split(' ')[1];
-    } else {
-      token = request.cookies.get('access_token')?.value;
-    }
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-    let decoded: { userId: string };
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    } catch {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-    }
-
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
-
-    if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
-    }
-
-    const allowedTypes = ["image/jpeg", "image/png"];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Invalid file type. Only PNG and JPG images are allowed." },
-        { status: 400 }
-      );
-    }
-
-    const maxSize = 5 * 1024 * 1024; 
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: "File size too large. Maximum size is 5MB." },
-        { status: 400 }
-      );
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: "article-feeds-app-profile",
-          resource_type: "auto",
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(buffer);
-    });
-
-    const imageUrl = (result as any).secure_url as string;
-    const publicId = (result as any).public_id as string;
-
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (user.profilePicture) {
-      try {
-        const urlParts = user.profilePicture.split('/');
-        const uploadIndex = urlParts.findIndex(part => part === 'upload');
-        if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
-          const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
-          const oldPublicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
-          await cloudinary.uploader.destroy(oldPublicId);
-        }
-      } catch (error) {
-      }
-    }
-
-    await prisma.user.update({ where: { id: decoded.userId }, data: { profilePicture: imageUrl } });
-
-    return NextResponse.json({
-      message: "Profile picture uploaded successfully",
-      url: imageUrl,
-      publicId: publicId
-    });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
+
+  const formData = await request.formData();
+  const file = formData.get("file") as File;
+
+  if (!file) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      'No file provided',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (!validateFileType(file, ALLOWED_IMAGE_TYPES)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      'Invalid file type. Only JPEG and PNG are allowed.',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (!validateFileSize(file, MAX_FILE_SIZE)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      ERROR_MESSAGES.FILE_TOO_LARGE,
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  const user = await prisma.user.findUnique({
+    where: { id: authResult.userId },
+    select: { profilePicture: true }
+  });
+
+  if (!user) {
+    return createErrorResponse(
+      ErrorCode.USER_NOT_FOUND,
+      ERROR_MESSAGES.USER_NOT_FOUND,
+      { statusCode: HttpStatusCode.NOT_FOUND }
+    );
+  }
+
+  if (user.profilePicture) {
+    const urlParts = user.profilePicture.split('/');
+    const uploadIndex = urlParts.findIndex(part => part === 'upload');
+    if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
+      const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
+      const oldPublicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
+      await cloudinary.uploader.destroy(oldPublicId);
+    }
+  }
+
+  const result = await new Promise<any>((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder: "article-feeds-app/profiles",
+        resource_type: "image",
+        transformation: [
+          { width: 400, height: 400, crop: "fill", gravity: "face" },
+          { quality: "auto:good" },
+          { format: "auto" }
+        ]
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    ).end(buffer);
+  });
+
+  const profilePictureUrl = result.secure_url;
+
+  await prisma.user.update({
+    where: { id: authResult.userId },
+    data: { profilePicture: profilePictureUrl }
+  });
+
+  return createSuccessResponse({
+    profilePictureUrl,
+    publicId: result.public_id,
+    width: result.width,
+    height: result.height
+  }, {
+    message: SUCCESS_MESSAGES.AVATAR_UPLOADED,
+  });
+});

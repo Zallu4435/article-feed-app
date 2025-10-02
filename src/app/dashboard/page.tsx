@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +20,7 @@ import {
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useInteract, like, dislike, bookmark, unbookmark } from '@/hooks/useInteractions';
+import { useInteract, like, unlike, bookmark, unbookmark } from '@/hooks/useInteractions';
 import { apiFetch } from '@/lib/api';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -28,26 +28,29 @@ const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
+  
   const dashboardQuery = useQuery({
     queryKey: ['dashboard-data'],
     queryFn: async () => {
       const json = await apiFetch<{
-        articles: any[];
-        preferences: Array<{ id: string; categoryId: string; categoryName: string; createdAt: string }>;
-        allCategories: Array<{ id: string; name: string }>;
-        hasPreferences: boolean;
-        message?: string;
-        stats: { articlesRead: number; likesGiven: number; bookmarks: number; readingStreakDays: number };
+        data: {
+          articles: any[];
+          preferences: Array<{ id: string; categoryId: string; categoryName: string; createdAt: string; category: any }>;
+          allCategories: Array<{ id: string; name: string }>;
+          hasPreferences: boolean;
+          message?: string;
+          stats: { articlesRead: number; likesGiven: number; bookmarks: number; readingStreakDays: number };
+        }
       }>('/api/dashboard');
       return json;
     },
   });
 
-  const articles = dashboardQuery.data?.articles || [];
-  const preferences = dashboardQuery.data?.preferences || [];
-  const allCategories = dashboardQuery.data?.allCategories || [];
-  const hasPreferences = dashboardQuery.data?.hasPreferences || false;
-  const stats = dashboardQuery.data?.stats;
+  const articles = dashboardQuery.data?.data?.articles || [];
+  const preferences = dashboardQuery.data?.data?.preferences || [];
+  const allCategories = dashboardQuery.data?.data?.allCategories || [];
+  const hasPreferences = dashboardQuery.data?.data?.hasPreferences || false;
+  const stats = dashboardQuery.data?.data?.stats;
   const isLoading = dashboardQuery.isLoading;
 
 
@@ -119,7 +122,7 @@ const DashboardPage: React.FC = () => {
                   key={preference.id}
                   className="px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
                 >
-                  {preference.categoryName}
+                  {preference.category?.name || 'Unknown'}
                 </span>
               ))}
             </div>
@@ -189,7 +192,6 @@ const DashboardPage: React.FC = () => {
   );
 };
 
-// Article Card Component
 const ArticleCard: React.FC<{
   article: any;
 }> = ({ article }) => {
@@ -245,9 +247,8 @@ const ArticleCard: React.FC<{
               if (liked) {
                 setLiked(false);
                 setLikesCount((c) => Math.max(0, c - 1));
-                interact.mutate(dislike(String(article.id)), {
+                interact.mutate(unlike(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -256,7 +257,6 @@ const ArticleCard: React.FC<{
                 setLikesCount((c) => c + 1);
                 interact.mutate(like(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -279,7 +279,6 @@ const ArticleCard: React.FC<{
                 setBookmarksCount((c) => Math.max(0, c - 1));
                 interact.mutate(unbookmark(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -288,7 +287,6 @@ const ArticleCard: React.FC<{
                 setBookmarksCount((c) => c + 1);
                 interact.mutate(bookmark(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -362,9 +360,8 @@ const ArticleListItem: React.FC<{
               if (liked) {
                 setLiked(false);
                 setLikesCount((c) => Math.max(0, c - 1));
-                interact.mutate(dislike(String(article.id)), {
+                interact.mutate(unlike(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -373,7 +370,6 @@ const ArticleListItem: React.FC<{
                 setLikesCount((c) => c + 1);
                 interact.mutate(like(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -396,7 +392,6 @@ const ArticleListItem: React.FC<{
                 setBookmarksCount((c) => Math.max(0, c - 1));
                 interact.mutate(unbookmark(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -405,7 +400,6 @@ const ArticleListItem: React.FC<{
                 setBookmarksCount((c) => c + 1);
                 interact.mutate(bookmark(String(article.id)), {
                   onSuccess: () => {
-                    // Refetch dashboard data to update stats
                     queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
                   }
                 });
@@ -425,7 +419,6 @@ const ArticleListItem: React.FC<{
 
 export default DashboardPage;
 
-// Small stat tile component
 const StatTile: React.FC<{
   label: string;
   value: string | number;

@@ -1,6 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { authenticateRequest } from "@/helpers/auth";
+import { validateFileType, validateFileSize } from "@/helpers/validation";
+import { createSuccessResponse, createErrorResponse, withErrorHandling } from "@/helpers/response";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import { v2 as cloudinary } from "cloudinary";
-import jwt from "jsonwebtoken";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,70 +15,75 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) {
-      token = auth.split(' ')[1];
-    } else {
-      token = request.cookies.get('access_token')?.value;
-    }
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    try { jwt.verify(token, process.env.JWT_SECRET!); } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
-
-    if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
-    }
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Invalid file type. Only images are allowed." },
-        { status: 400 }
-      );
-    }
-
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: "File size too large. Maximum size is 5MB." },
-        { status: 400 }
-      );
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: "article-feeds-app",
-          resource_type: "auto",
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(buffer);
-    });
-
-    return NextResponse.json({
-      message: "File uploaded successfully",
-      url: (result as any).secure_url,
-      publicId: (result as any).public_id
-    });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
+
+  const formData = await request.formData();
+  const file = formData.get("file") as File;
+
+  if (!file) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      'No file provided',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (!validateFileType(file, ALLOWED_IMAGE_TYPES)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      ERROR_MESSAGES.INVALID_FILE_TYPE,
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (!validateFileSize(file, MAX_FILE_SIZE)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      ERROR_MESSAGES.FILE_TOO_LARGE,
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  const result = await new Promise<any>((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder: "article-feeds-app",
+        resource_type: "auto",
+        transformation: [
+          { width: 1200, height: 800, crop: "limit" },
+          { quality: "auto:good" },
+          { format: "auto" }
+        ]
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    ).end(buffer);
+  });
+
+  return createSuccessResponse({
+    url: result.secure_url,
+    publicId: result.public_id,
+    width: result.width,
+    height: result.height,
+    format: result.format,
+    bytes: result.bytes
+  }, {
+    message: SUCCESS_MESSAGES.FILE_UPLOADED,
+  });
+});

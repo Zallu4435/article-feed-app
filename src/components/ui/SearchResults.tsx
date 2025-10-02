@@ -24,8 +24,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, isOpen, onClose, o
     enabled: isAuthenticated && !!query.trim()
   });
 
-  const articles = searchData?.articles || [];
-  const totalResults = searchData?.pagination?.total || 0;
+  const articles = searchData?.data || [];
+  const totalResults = searchData?.meta?.pagination?.total || 0;
 
   useEffect(() => {
     setSelectedIndex(0);

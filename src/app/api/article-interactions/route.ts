@@ -1,90 +1,141 @@
-import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
+import { NextRequest } from "next/server";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { authenticateRequest, isValidUUID } from "@/helpers/auth";
+import { createSuccessResponse, createErrorResponse, createNotFoundResponse, createForbiddenResponse, withErrorHandling } from "@/helpers/response";
+import { ArticleService } from "@/services/article.service";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function getUserIdFromRequest(request: NextRequest): string | null {
-  let token: string | undefined;
-  const auth = request.headers.get('authorization');
-  if (auth) token = auth.split(' ')[1];
-  if (!token) token = request.cookies.get('access_token')?.value;
-  if (!token) return null;
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    return decoded.userId as string;
-  } catch {
-    return null;
+type InteractionType = 'like' | 'unlike' | 'bookmark' | 'unbookmark' | 'block' | 'unblock';
+
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
+    );
   }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-
-    const userId = getUserIdFromRequest(request);
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const { articleId, type } = body as { articleId?: string; type?: 'like' | 'dislike' | 'block' | 'unblock' | 'bookmark' | 'unbookmark' };
+  const { articleId, type } = body as { articleId?: string; type?: InteractionType };
 
-    if (!articleId || !type || !['like','dislike','block','unblock','bookmark','unbookmark'].includes(type)) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  // Validate input
+  if (!articleId || !type) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      'Article ID and interaction type are required',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (!isValidUUID(articleId)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      ERROR_MESSAGES.INVALID_UUID,
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const validTypes: InteractionType[] = ['like', 'unlike', 'bookmark', 'unbookmark', 'block', 'unblock'];
+  if (!validTypes.includes(type)) {
+    return createErrorResponse(
+      ErrorCode.VALIDATION_ERROR,
+      'Invalid interaction type',
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  if (type === 'block' || type === 'unblock') {
+    const article = await prisma.article.findUnique({ 
+      where: { id: articleId }, 
+      select: { authorId: true } 
+    });
+    
+    if (!article) {
+      return createNotFoundResponse(ERROR_MESSAGES.ARTICLE_NOT_FOUND);
+    }
+    
+    if (article.authorId !== authResult.userId) {
+      return createForbiddenResponse('Only the author can block/unblock their articles');
     }
 
-    if (type === 'block' || type === 'unblock') {
-      const existing = await prisma.article.findUnique({ where: { id: articleId }, select: { authorId: true } });
-      if (!existing || existing.authorId !== userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
+    await prisma.article.update({ 
+      where: { id: articleId }, 
+      data: { isBlocked: type === 'block' } 
+    });
 
-    if (type === 'unblock') {
-      await prisma.article.update({ where: { id: articleId }, data: { isBlocked: false } });
-      return NextResponse.json({ success: true });
-    }
-
-    if (type === 'block') {
-      await prisma.article.update({ where: { id: articleId }, data: { isBlocked: true } });
-      return NextResponse.json({ success: true });
-    }
-
-    const art = await prisma.article.findUnique({ where: { id: articleId } });
-    if (!art) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    const likers: string[] = Array.isArray(art.likers) ? art.likers : [];
-    const viewers: string[] = Array.isArray(art.viewers) ? art.viewers : [];
-    const bookmarkers: string[] = Array.isArray(art.bookmarkers) ? art.bookmarkers : [];
-
-    let data: any = {};
+    return createSuccessResponse(null, {
+      message: type === 'block' ? 'Article blocked successfully' : 'Article unblocked successfully',
+    });
+  }
 
     if (type === 'like') {
-      if (!likers.includes(userId)) likers.push(userId);
-      data.likers = likers;
-      data.likesCount = likers.length;
-    } else if (type === 'dislike') {
-      if (likers.includes(userId)) {
-        const updatedLikers = likers.filter((x) => x !== userId);
-        data.likers = updatedLikers;
-        data.likesCount = updatedLikers.length;
-      }
-    } else if (type === 'bookmark') {
-      if (!bookmarkers.includes(userId)) bookmarkers.push(userId);
-      data.bookmarkers = bookmarkers;
-      data.bookmarksCount = bookmarkers.length;
-    } else if (type === 'unbookmark') {
-      if (bookmarkers.includes(userId)) {
-        const updated = bookmarkers.filter((x) => x !== userId);
-        data.bookmarkers = updated;
-        data.bookmarksCount = updated.length;
-      }
+    const result = await ArticleService.likeArticle(articleId, authResult.userId!);
+    if (!result.success) {
+      return createErrorResponse(
+        ErrorCode.OPERATION_FAILED,
+        result.error!,
+        { statusCode: HttpStatusCode.BAD_REQUEST }
+      );
     }
-
-    await prisma.article.update({ where: { id: articleId }, data });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return createSuccessResponse({ newCount: result.newCount }, {
+      message: SUCCESS_MESSAGES.ARTICLE_LIKED,
+    });
   }
-}
+
+  if (type === 'unlike') {
+    const result = await ArticleService.unlikeArticle(articleId, authResult.userId!);
+    if (!result.success) {
+      return createErrorResponse(
+        ErrorCode.OPERATION_FAILED,
+        result.error!,
+        { statusCode: HttpStatusCode.BAD_REQUEST }
+      );
+    }
+    return createSuccessResponse({ newCount: result.newCount }, {
+      message: SUCCESS_MESSAGES.ARTICLE_UNLIKED,
+    });
+  }
+
+  if (type === 'bookmark') {
+    const result = await ArticleService.bookmarkArticle(articleId, authResult.userId!);
+    if (!result.success) {
+      return createErrorResponse(
+        ErrorCode.OPERATION_FAILED,
+        result.error!,
+        { statusCode: HttpStatusCode.BAD_REQUEST }
+      );
+    }
+    return createSuccessResponse({ newCount: result.newCount }, {
+      message: SUCCESS_MESSAGES.ARTICLE_BOOKMARKED,
+    });
+  }
+
+  if (type === 'unbookmark') {
+    const result = await ArticleService.unbookmarkArticle(articleId, authResult.userId!);
+    if (!result.success) {
+      return createErrorResponse(
+        ErrorCode.OPERATION_FAILED,
+        result.error!,
+        { statusCode: HttpStatusCode.BAD_REQUEST }
+      );
+    }
+    return createSuccessResponse({ newCount: result.newCount }, {
+      message: SUCCESS_MESSAGES.ARTICLE_UNBOOKMARKED,
+    });
+  }
+
+  return createErrorResponse(
+    ErrorCode.INVALID_OPERATION,
+    'Invalid interaction type',
+    { statusCode: HttpStatusCode.BAD_REQUEST }
+  );
+});

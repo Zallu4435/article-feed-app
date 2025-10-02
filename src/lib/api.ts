@@ -41,7 +41,17 @@ export const apiFetch = async <T>(path: string, opts: ApiOptions = {}): Promise<
   }
 
   if (!res.ok) {
-    const msg = (data && (data.error || data.message)) || res.statusText;
+    // Handle new response structure: { success: false, error: { code: string, message: string } }
+    let msg = res.statusText;
+    if (data) {
+      if (data.error?.message) {
+        msg = data.error.message;
+      } else if (data.error && typeof data.error === 'string') {
+        msg = data.error;
+      } else if (data.message) {
+        msg = data.message;
+      }
+    }
     throw new Error(msg);
   }
 

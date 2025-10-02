@@ -1,61 +1,69 @@
-import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
-import prisma from "@/lib/prisma";
+import { NextRequest } from "next/server";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { authenticateRequest } from "@/helpers/auth";
+import { createSuccessResponse, createErrorResponse, withErrorHandling } from "@/helpers/response";
+import { CategoryService } from "@/services/category.service";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES } from "@/constants/messages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  try {
-    await initializeDatabase();
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
 
-    const categories = await prisma.category.findMany({
-      orderBy: { name: "asc" }
-    });
+  const result = await CategoryService.getAllCategories();
 
-    return NextResponse.json({ categories });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  if (!result.success) {
+    return createErrorResponse(
+      ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode: HttpStatusCode.INTERNAL_SERVER_ERROR }
     );
   }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    const body = await request.json();
-    const { name, description } = body as { name?: string; description?: string | null };
+  return createSuccessResponse({ categories: result.categories });
+});
 
-    if (!name) {
-      return NextResponse.json(
-        { error: "Category name is required" },
-        { status: 400 }
-      );
-    }
-
-    const existingCategory = await prisma.category.findUnique({ where: { name } });
-
-    if (existingCategory) {
-      return NextResponse.json(
-        { error: "Category with this name already exists" },
-        { status: 409 }
-      );
-    }
-
-    const category = await prisma.category.create({ data: { name, description: description ?? null } });
-
-    return NextResponse.json({
-      message: "Category created successfully",
-      category
-    }, { status: 201 });
-
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
+
+  const body = await request.json();
+  const { name, description } = body;
+
+  if (!name) {
+    return createErrorResponse(
+      ErrorCode.MISSING_REQUIRED_FIELD,
+      "Category name is required",
+      { statusCode: HttpStatusCode.BAD_REQUEST }
+    );
+  }
+
+  const result = await CategoryService.createCategory({ name, description });
+
+  if (!result.success) {
+    const statusCode = result.error?.includes('already exists') 
+      ? HttpStatusCode.CONFLICT 
+      : HttpStatusCode.INTERNAL_SERVER_ERROR;
+    
+    return createErrorResponse(
+      result.error?.includes('already exists') ? ErrorCode.ALREADY_EXISTS : ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode }
+    );
+  }
+
+  return createSuccessResponse(result.category, {
+    message: SUCCESS_MESSAGES.CATEGORY_CREATED,
+    statusCode: HttpStatusCode.CREATED,
+  });
+});

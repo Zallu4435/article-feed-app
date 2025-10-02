@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeDatabase } from "@/lib/database";
-import prisma from "@/lib/prisma";
-import jwt from "jsonwebtoken";
+import { ensureDatabaseConnection } from "@/helpers/database";
+import { authenticateRequest } from "@/helpers/auth";
+import { createSuccessResponse, createErrorResponse, createNotFoundResponse, withErrorHandling } from "@/helpers/response";
+import { UserService } from "@/services/user.service";
+import { HttpStatusCode, ErrorCode } from "@/constants/status-codes";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "@/constants/messages";
 import { v2 as cloudinary } from "cloudinary";
+import prisma from "@/lib/prisma";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -13,150 +17,112 @@ cloudinary.config({
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  try {
-    await initializeDatabase();
-
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) {
-      token = auth.split(' ')[1];
-    } else {
-      token = request.cookies.get('access_token')?.value;
-    }
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    let decoded: { userId: string };
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    } catch {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
-    }
-    const userId = decoded.userId;
-
-    const userWithPreferences = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { preferences: { include: { category: true } } }
-    });
-    if (!userWithPreferences) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const { password: _, ...userWithoutPassword } = userWithPreferences as any;
-    return NextResponse.json({ user: userWithoutPassword });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
     );
   }
-}
 
-export async function PUT(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) {
-      token = auth.split(' ')[1];
-    } else {
-      token = request.cookies.get('access_token')?.value;
-    }
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    let decoded: { userId: string };
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    } catch {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
-    }
-    const userId = decoded.userId;
+  const result = await UserService.getUserProfile(authResult.userId!);
+
+  if (!result.success) {
+    return createNotFoundResponse(ERROR_MESSAGES.PROFILE_UPDATE_FAILED);
+  }
+
+  return createSuccessResponse({ user: result.user });
+});
+
+export const PUT = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
+    );
+  }
+
     const body = await request.json();
-    const { firstName, lastName, phone, dateOfBirth, profilePicture } = body as { 
-      firstName?: string; 
-      lastName?: string; 
-      phone?: string; 
-      dateOfBirth?: string;
-      profilePicture?: string | null;
-    };
+  const { firstName, lastName, phone, dateOfBirth, profilePicture } = body;
 
-    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
-    if (!existingUser) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-    if (profilePicture === null && existingUser.profilePicture) {
-      try {
-        const urlParts = existingUser.profilePicture.split('/');
-        const uploadIndex = urlParts.findIndex(part => part === 'upload');
-        if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
-          const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
-          const publicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
-          await cloudinary.uploader.destroy(publicId);
-        }
-      } catch (error) {
-        console.warn('Failed to delete profile picture from Cloudinary:', error);
+  if (profilePicture === null) {
+    const existingUser = await prisma.user.findUnique({ 
+      where: { id: authResult.userId },
+      select: { profilePicture: true }
+    });
+    
+    if (existingUser?.profilePicture) {
+      const urlParts = existingUser.profilePicture.split('/');
+      const uploadIndex = urlParts.findIndex(part => part === 'upload');
+      if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
+        const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
+        const publicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
+        await cloudinary.uploader.destroy(publicId);
       }
     }
+  }
 
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName: firstName ?? existingUser.firstName,
-        lastName: lastName ?? existingUser.lastName,
-        phone: phone ?? existingUser.phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : existingUser.dateOfBirth,
-        profilePicture: profilePicture !== undefined ? profilePicture : existingUser.profilePicture
-      }
-    });
+  const result = await UserService.updateUserProfile(authResult.userId!, {
+    firstName,
+    lastName,
+    phone,
+    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+    profilePictureUrl: profilePicture !== undefined ? profilePicture : undefined,
+  });
 
-    const { password: _, ...userWithoutPassword } = updated as any;
-    return NextResponse.json({
-      message: "Profile updated successfully",
-      user: userWithoutPassword
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+  if (!result.success) {
+    return createErrorResponse(
+      ErrorCode.OPERATION_FAILED,
+      result.error!,
+      { statusCode: HttpStatusCode.INTERNAL_SERVER_ERROR }
     );
   }
-}
 
-export async function DELETE(request: NextRequest) {
-  try {
-    await initializeDatabase();
-    
-    let token: string | undefined;
-    const auth = request.headers.get('authorization');
-    if (auth) {
-      token = auth.split(' ')[1];
-    } else {
-      token = request.cookies.get('access_token')?.value;
-    }
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    let decoded: { userId: string };
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    } catch {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
-    }
+  return createSuccessResponse({ user: result.user }, {
+    message: SUCCESS_MESSAGES.PROFILE_UPDATED,
+  });
+});
 
-    const userId = decoded.userId;
+export const DELETE = withErrorHandling(async (request: NextRequest) => {
+  await ensureDatabaseConnection();
+  
+  const authResult = authenticateRequest(request);
+  if (!authResult.success) {
+    return createErrorResponse(
+      authResult.error!.code,
+      authResult.error!.message,
+      { statusCode: authResult.error!.statusCode }
+    );
+  }
 
-    const existingUser = await prisma.user.findUnique({ where: { id: userId } });
-    if (!existingUser) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const userId = authResult.userId!;
+
+  const existingUser = await prisma.user.findUnique({ 
+    where: { id: userId },
+    select: { id: true, profilePicture: true }
+  });
+  
+  if (!existingUser) {
+    return createNotFoundResponse('User not found');
+  }
+
+  if (existingUser.profilePicture) {
+    const urlParts = existingUser.profilePicture.split('/');
+    const uploadIndex = urlParts.findIndex(part => part === 'upload');
+    if (uploadIndex !== -1 && urlParts[uploadIndex + 2]) {
+      const publicIdWithFolder = urlParts.slice(uploadIndex + 2).join('/');
+      const publicId = publicIdWithFolder.replace(/\.[^/.]+$/, '');
+      await cloudinary.uploader.destroy(publicId);
     }
+  }
 
     await prisma.$transaction([
       prisma.userPreference.deleteMany({ where: { userId } }),
@@ -165,12 +131,14 @@ export async function DELETE(request: NextRequest) {
       prisma.user.delete({ where: { id: userId } }),
     ]);
 
-    const res = NextResponse.json({ message: 'Account deleted' });
+  const response = NextResponse.json({
+    success: true,
+    data: null,
+    message: 'Account deleted successfully',
+  });
 
-    res.cookies.set('access_token', '', { httpOnly: true, maxAge: 0, path: '/' });
-    res.cookies.set('refresh_token', '', { httpOnly: true, maxAge: 0, path: '/' });
-    return res;
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+  response.cookies.set('access_token', '', { httpOnly: true, maxAge: 0, path: '/' });
+  response.cookies.set('refresh_token', '', { httpOnly: true, maxAge: 0, path: '/' });
+  
+  return response;
+});

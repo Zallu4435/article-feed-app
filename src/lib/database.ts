@@ -8,7 +8,6 @@ export const initializeDatabase = async () => {
     return initializationPromise;
   }
 
-  // Prisma lazily connects on first query; do a lightweight check
   isInitializing = true;
   initializationPromise = prisma
     .$queryRawUnsafe("SELECT 1")
