@@ -142,7 +142,7 @@ const SettingsPage: React.FC = () => {
           <Card>
             <CardHeader divider>
               <CardTitle>Preferences</CardTitle>
-              <CardDescription>Choose categories you’re interested in and theme</CardDescription>
+              <CardDescription>Choose categories you're interested in</CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               <div>
@@ -258,7 +258,7 @@ const SettingsPage: React.FC = () => {
               </p>
               <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Type DELETE to confirm" />
               <div className="flex items-center justify-end">
-                <Button variant="destructive" disabled={confirmText !== 'DELETE'} onClick={() => setShowDeleteModal(true)}>Delete Account</Button>
+                <Button variant="destructive" disabled={confirmText !== 'DELETE' || delAccount.isPending} loading={delAccount.isPending} onClick={() => setShowDeleteModal(true)}>Delete Account</Button>
               </div>
             </CardContent>
           </Card>

@@ -73,13 +73,10 @@ const ArticleViewPage: React.FC = () => {
 
   if (!article) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <LoadingSpinner 
           size={48} 
           text="Loading article..." 
-          overlay={true}
-          preventScroll={true}
-          backdrop="blur"
         />
       </div>
     );
